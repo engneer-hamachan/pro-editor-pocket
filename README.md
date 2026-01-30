@@ -1,20 +1,20 @@
-# Pro Editor Pocket for PicoRuby
+# Pro Editor Pocket for PicoRuby 🧑‍💻✨
 
 ![Demo](image/tdeck-main.jpg)
 
-## A VS Code–like Editor in Your Pocket
+## A VS Code–like Editor in Your Pocket 🎒
 
 **ProEditorPocket** is a VS Code–inspired editor that allows you to
-edit and execute PicoRuby code directly on your device.
+edit and execute PicoRuby code directly on your device 🚀
 
-This project is intended as an experimental and playful piece of software.
+This project is intended as an experimental and playful piece of software 🧪🎮
 Features such as file saving or multi-file editing are not supported.
 
 ---
 
-## Setup
+## Setup ⚙️
 
-### Step 1: Initialize submodules
+### Step 1: Initialize submodules 📦
 
 ```bash
 git submodule update --init --recursive
@@ -22,7 +22,7 @@ git submodule update --init --recursive
 
 ---
 
-### Step 2: Update CMakeLists
+### Step 2: Update CMakeLists 🛠️
 
 Edit `components/picoruby-esp32/CMakeLists.txt`
 
@@ -41,7 +41,7 @@ ${COMPONENT_DIR}/../picoruby-tft/include
 
 ---
 
-### Step 3: Update build configuration
+### Step 3: Update build configuration 🧩
 
 Edit `components/picoruby-esp32/picoruby/build_config/xtensa-esp.rb`
 
@@ -51,7 +51,7 @@ conf.gem File.expand_path('../../picoruby-tft', __dir__)
 
 ---
 
-### Step 4: Build and flash
+### Step 4: Build and flash 🔥
 
 ```bash
 . $(YOUR_ESP_IDF_PATH)/export.sh
@@ -62,18 +62,16 @@ idf.py flash
 
 ---
 
-![Demo](image/tdeck-main.jpg)
+## Features ✨
 
-## Features
-
-- Line numbers with automatic alignment
-- Ruby syntax highlighting (keywords, strings, numbers, variables, etc.)
-- Multi-line input with automatic indentation
-- Basic code completion
+- Line numbers with automatic alignment 📏
+- Ruby syntax highlighting (keywords, strings, numbers, variables, etc.) 🎨
+- Multi-line input with automatic indentation ↩️
+- Basic code completion 🧠
 
 ---
 
-## Special Key Mapping
+## Special Key Mapping ⌨️
 
 The keyboard layout is mostly identical to the default T-Keyboard configuration.
 However, some keys are specially assigned to make Ruby coding more convenient.
@@ -91,9 +89,7 @@ then holding `Shift` while pressing the corresponding key.
 
 ---
 
-## Special Controls
-
-These are additional controls designed to make the editor easier and more enjoyable to use.
+## Special Controls 🕹️
 
 - Trackball Up / Down  
   Select completion candidates
@@ -106,11 +102,7 @@ These are additional controls designed to make the editor easier and more enjoya
 
 ---
 
-## Known Issues
-
-This project is still under development.
+## Known Issues ⚠️
 
 - Repeated execution may exhaust system resources and cause the device to restart
 - If any buttons stop responding, try resetting or reflashing the device
-
----
