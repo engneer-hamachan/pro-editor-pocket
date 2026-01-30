@@ -67,6 +67,8 @@ idf.py flash
 
 ## Features ✨
 
+![Demo](image/tdeck-display.jpg)
+
 - Line numbers with automatic alignment 📏
 - Ruby syntax highlighting (keywords, strings, numbers, variables, etc.) 🎨
 - Multi-line input with automatic indentation ↩️
