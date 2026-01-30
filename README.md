@@ -1,42 +1,57 @@
-# 💎 Pro Editor Pocket For Picoruby ✨
+# Pro Editor Pocket for PicoRuby
 
-![Demo](image/main.jpg)
+![Demo](image/tdeck-main.jpg)
 
-🚀 **VS Code Like Editor in your pocket!** Write and execute Ruby code 
+## A VS Code–like Editor in Your Pocket
+
+**ProEditorPocket** is a VS Code–inspired editor that allows you to
+edit and execute PicoRuby code directly on your device.
+
+This project is intended as an experimental and playful piece of software.
+Features such as file saving or multi-file editing are not supported.
 
 ---
 
-## 🛠️ Setup
+## Setup
 
-### 1️⃣ Update submodules
+### Step 1: Initialize submodules
+
 ```bash
 git submodule update --init --recursive
 ```
 
-### 2️⃣ Update CMakeLists
+---
 
-📝 Edit `components/picoruby-esp32/CMakeLists.txt`:
+### Step 2: Update CMakeLists
 
-**➕ Add to SRCS:**
+Edit `components/picoruby-esp32/CMakeLists.txt`
+
+Add the following entries to `SRCS`:
+
 ```cmake
 ${COMPONENT_DIR}/../picoruby-tft/ports/esp32/tft_native.c
 ${COMPONENT_DIR}/../picoruby-tft/ports/esp32/st7789_spi.c
 ```
 
-**➕ Add to INCLUDE_DIRS:**
+Add the following entry to `INCLUDE_DIRS`:
+
 ```cmake
 ${COMPONENT_DIR}/../picoruby-tft/include
 ```
 
-### 3️⃣ Update build configuration
+---
 
-📝 Edit `components/picoruby-esp32/picoruby/build_config/xtensa-esp.rb`:
+### Step 3: Update build configuration
+
+Edit `components/picoruby-esp32/picoruby/build_config/xtensa-esp.rb`
 
 ```ruby
 conf.gem File.expand_path('../../picoruby-tft', __dir__)
 ```
 
-### 4 Build and flash 🔥
+---
+
+### Step 4: Build and flash
 
 ```bash
 . $(YOUR_ESP_IDF_PATH)/export.sh
@@ -47,18 +62,22 @@ idf.py flash
 
 ---
 
-**Features:**
-- Line numbers with auto-alignment
-- Full Ruby syntax highlighting (keywords, strings, numbers, variables, etc.)
-- Multi-line input support with auto-indentation
+## Features
+
+- Line numbers with automatic alignment
+- Ruby syntax highlighting (keywords, strings, numbers, variables, etc.)
+- Multi-line input with automatic indentation
+- Basic code completion
 
 ---
 
-## ⚠️ Known Issues
+## Known Issues
 
-🚧 **Work in Progress** - The following issues are currently being fixed:
+This project is still under development.
 
-- 🔄 **Resource Exhaustion**: After multiple executions, resources may become exhausted, causing the device to restart
+- Repeated execution may exhaust system resources and cause the device to restart
+- If any buttons stop responding, try resetting or reflashing the device
 
-Stay tuned for updates! 🛠️
+---
 
+Further improvements are planned.
