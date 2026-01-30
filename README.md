@@ -4,10 +4,13 @@
 
 ## A VS Code–like Editor in Your Pocket 🎒
 
-**ProEditorPocket** is a VS Code–inspired editor that allows you to
+**ProEditorPocket** is a VS Code–inspired editor that allows you to  
 edit and execute PicoRuby code directly on your device 🚀
 
-This project is intended as an experimental and playful piece of software 🧪🎮
+📌 **This software is designed exclusively for the T-Deck Plus.**  
+It is not intended to run on other devices.
+
+This project is intended as an experimental and playful piece of software 🧪🎮  
 Features such as file saving or multi-file editing are not supported.
 
 ---
@@ -73,10 +76,10 @@ idf.py flash
 
 ## Special Key Mapping ⌨️
 
-The keyboard layout is mostly identical to the default T-Keyboard configuration.
+The keyboard layout is mostly identical to the default T-Keyboard configuration.  
 However, some keys are specially assigned to make Ruby coding more convenient.
 
-The following symbols can be entered by pressing the `sym` key first,
+The following symbols can be entered by pressing the `sym` key first,  
 then holding `Shift` while pressing the corresponding key.
 
 - `=` : `Shift + Q`
