@@ -62,6 +62,8 @@ idf.py flash
 
 ---
 
+![Demo](image/tdeck-main.jpg)
+
 ## Features
 
 - Line numbers with automatic alignment
@@ -79,5 +81,3 @@ This project is still under development.
 - If any buttons stop responding, try resetting or reflashing the device
 
 ---
-
-Further improvements are planned.
