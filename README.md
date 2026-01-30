@@ -1,6 +1,6 @@
 # Pro Editor Pocket for PicoRuby 🧑‍💻✨
 
-![Demo](image/tdeck-main.jpg)
+![Demo](image/tdeck-main.png)
 
 ## A VS Code–like Editor in Your Pocket 🎒
 
