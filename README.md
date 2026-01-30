@@ -33,7 +33,7 @@ ${COMPONENT_DIR}/../tft/include
 📝 Edit `components/picoruby-esp32/picoruby/build_config/xtensa-esp.rb`:
 
 ```ruby
-conf.gem File.expand_path('../../../tft', __dir__)
+conf.gem File.expand_path('../../tft', __dir__)
 ```
 
 ### 4 Build and flash 🔥
