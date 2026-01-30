@@ -1,0 +1,431 @@
+{
+  "frame": "Builtin",
+  "class": "TFT",
+  "class_methods": [
+    {
+      "name": "init",
+      "arguments": [],
+      "return_type": {
+        "type": [
+          "NilClass"
+        ]
+      },
+      "document": "Initialize TFT display"
+    },
+    {
+      "name": "begin",
+      "arguments": [],
+      "return_type": {
+        "type": [
+          "NilClass"
+        ]
+      },
+      "document": "Initialize TFT display (alias for init)"
+    },
+    {
+      "name": "width",
+      "arguments": [],
+      "return_type": {
+        "type": [
+          "Int"
+        ]
+      },
+      "document": "Get display width in pixels"
+    },
+    {
+      "name": "height",
+      "arguments": [],
+      "return_type": {
+        "type": [
+          "Int"
+        ]
+      },
+      "document": "Get display height in pixels"
+    },
+    {
+      "name": "set_rotation",
+      "arguments": [
+        {
+          "type": [
+            "Int"
+          ]
+        }
+      ],
+      "return_type": {
+        "type": [
+          "NilClass"
+        ]
+      },
+      "document": "Set display rotation (0-3)"
+    },
+    {
+      "name": "get_rotation",
+      "arguments": [],
+      "return_type": {
+        "type": [
+          "Int"
+        ]
+      },
+      "document": "Get current display rotation"
+    },
+    {
+      "name": "fill_screen",
+      "arguments": [
+        {
+          "type": [
+            "?Int"
+          ]
+        }
+      ],
+      "return_type": {
+        "type": [
+          "NilClass"
+        ]
+      },
+      "document": "Fill entire screen with color (RGB888)"
+    },
+    {
+      "name": "draw_pixel",
+      "arguments": [
+        {
+          "type": [
+            "Int"
+          ]
+        },
+        {
+          "type": [
+            "Int"
+          ]
+        },
+        {
+          "type": [
+            "Int"
+          ]
+        }
+      ],
+      "return_type": {
+        "type": [
+          "NilClass"
+        ]
+      },
+      "document": "Draw a pixel at (x, y) with color (RGB888)"
+    },
+    {
+      "name": "fill_rect",
+      "arguments": [
+        {
+          "type": [
+            "Int"
+          ]
+        },
+        {
+          "type": [
+            "Int"
+          ]
+        },
+        {
+          "type": [
+            "Int"
+          ]
+        },
+        {
+          "type": [
+            "Int"
+          ]
+        },
+        {
+          "type": [
+            "Int"
+          ]
+        }
+      ],
+      "return_type": {
+        "type": [
+          "NilClass"
+        ]
+      },
+      "document": "Fill rectangle at (x, y) with width w, height h, and color (RGB888)"
+    },
+    {
+      "name": "set_cursor",
+      "arguments": [
+        {
+          "type": [
+            "Int"
+          ]
+        },
+        {
+          "type": [
+            "Int"
+          ]
+        }
+      ],
+      "return_type": {
+        "type": [
+          "NilClass"
+        ]
+      },
+      "document": "Set text cursor position (x, y)"
+    },
+    {
+      "name": "set_text_color",
+      "arguments": [
+        {
+          "type": [
+            "Int"
+          ]
+        }
+      ],
+      "return_type": {
+        "type": [
+          "NilClass"
+        ]
+      },
+      "document": "Set text color (RGB888)"
+    },
+    {
+      "name": "set_text_size",
+      "arguments": [
+        {
+          "type": [
+            "Int"
+          ]
+        }
+      ],
+      "return_type": {
+        "type": [
+          "NilClass"
+        ]
+      },
+      "document": "Set text size (scale factor)"
+    },
+    {
+      "name": "set_text_wrap",
+      "arguments": [
+        {
+          "type": [
+            "Bool"
+          ]
+        }
+      ],
+      "return_type": {
+        "type": [
+          "NilClass"
+        ]
+      },
+      "document": "Enable or disable text wrapping"
+    },
+    {
+      "name": "print",
+      "arguments": [
+        {
+          "type": [
+            "String"
+          ]
+        }
+      ],
+      "return_type": {
+        "type": [
+          "NilClass"
+        ]
+      },
+      "document": "Print text at cursor position"
+    },
+    {
+      "name": "set_backlight",
+      "arguments": [
+        {
+          "type": [
+            "?Int"
+          ]
+        }
+      ],
+      "return_type": {
+        "type": [
+          "NilClass"
+        ]
+      },
+      "document": "Set backlight level (0-16)"
+    },
+    {
+      "name": "draw_fast_h_line",
+      "arguments": [
+        {
+          "type": [
+            "Int"
+          ]
+        },
+        {
+          "type": [
+            "Int"
+          ]
+        },
+        {
+          "type": [
+            "Int"
+          ]
+        },
+        {
+          "type": [
+            "Int"
+          ]
+        }
+      ],
+      "return_type": {
+        "type": [
+          "NilClass"
+        ]
+      },
+      "document": "Draw horizontal line at (x, y) with width w and color (RGB888)"
+    },
+    {
+      "name": "draw_fast_v_line",
+      "arguments": [
+        {
+          "type": [
+            "Int"
+          ]
+        },
+        {
+          "type": [
+            "Int"
+          ]
+        },
+        {
+          "type": [
+            "Int"
+          ]
+        },
+        {
+          "type": [
+            "Int"
+          ]
+        }
+      ],
+      "return_type": {
+        "type": [
+          "NilClass"
+        ]
+      },
+      "document": "Draw vertical line at (x, y) with height h and color (RGB888)"
+    },
+    {
+      "name": "draw_rect",
+      "arguments": [
+        {
+          "type": [
+            "Int"
+          ]
+        },
+        {
+          "type": [
+            "Int"
+          ]
+        },
+        {
+          "type": [
+            "Int"
+          ]
+        },
+        {
+          "type": [
+            "Int"
+          ]
+        },
+        {
+          "type": [
+            "Int"
+          ]
+        }
+      ],
+      "return_type": {
+        "type": [
+          "NilClass"
+        ]
+      },
+      "document": "Draw rectangle outline at (x, y) with width w, height h, and color (RGB888)"
+    },
+    {
+      "name": "draw_round_rect",
+      "arguments": [
+        {
+          "type": [
+            "Int"
+          ]
+        },
+        {
+          "type": [
+            "Int"
+          ]
+        },
+        {
+          "type": [
+            "Int"
+          ]
+        },
+        {
+          "type": [
+            "Int"
+          ]
+        },
+        {
+          "type": [
+            "Int"
+          ]
+        },
+        {
+          "type": [
+            "Int"
+          ]
+        }
+      ],
+      "return_type": {
+        "type": [
+          "NilClass"
+        ]
+      },
+      "document": "Draw rounded rectangle outline at (x, y) with width w, height h, corner radius r, and color (RGB888)"
+    },
+    {
+      "name": "fill_round_rect",
+      "arguments": [
+        {
+          "type": [
+            "Int"
+          ]
+        },
+        {
+          "type": [
+            "Int"
+          ]
+        },
+        {
+          "type": [
+            "Int"
+          ]
+        },
+        {
+          "type": [
+            "Int"
+          ]
+        },
+        {
+          "type": [
+            "Int"
+          ]
+        },
+        {
+          "type": [
+            "Int"
+          ]
+        }
+      ],
+      "return_type": {
+        "type": [
+          "NilClass"
+        ]
+      },
+      "document": "Fill rounded rectangle at (x, y) with width w, height h, corner radius r, and color (RGB888)"
+    }
+  ]
+}

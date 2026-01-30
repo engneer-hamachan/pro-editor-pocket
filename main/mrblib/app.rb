@@ -606,10 +606,10 @@ loop do
 
   if key_event > 0
     # Debug: show key code at top right
-    if key_event != 7
-      TFT.fill_rect(280, 4, 40, 14, 0x2D2D2D)
-      draw_text("K:#{key_event}", 282, 8, 0x6E6E6E)
-    end
+    # if key_event != 7
+    #   TFT.fill_rect(280, 4, 40, 14, 0x2D2D2D)
+    #   draw_text("K:#{key_event}", 282, 8, 0x6E6E6E)
+    # end
 
     draw_status('--NORMAL--', current_row)
 
