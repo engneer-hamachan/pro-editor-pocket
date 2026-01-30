@@ -73,6 +73,39 @@ idf.py flash
 
 ---
 
+## Special Key Mapping
+
+The keyboard layout is mostly identical to the default T-Keyboard configuration.
+However, some keys are specially assigned to make Ruby coding more convenient.
+
+The following symbols can be entered by pressing the `sym` key first,
+then holding `Shift` while pressing the corresponding key.
+
+- `=` : `Shift + Q`
+- `[` : `Shift + G`
+- `]` : `Shift + H`
+- `{` : `Shift + V`
+- `}` : `Shift + B`
+- `<` : `Shift + Z`
+- `>` : `Shift + X`
+
+---
+
+## Special Controls
+
+These are additional controls designed to make the editor easier and more enjoyable to use.
+
+- Trackball Up / Down  
+  Select completion candidates
+
+- Trackball Left / Right  
+  Scroll the result area horizontally
+
+- Alt + C  
+  Clear all currently entered code
+
+---
+
 ## Known Issues
 
 This project is still under development.
