@@ -73,7 +73,7 @@ idf.py flash
 - Ruby syntax highlighting (keywords, strings, numbers, variables, etc.) 🎨
 - Multi-line input with automatic indentation ↩️
 - Basic code completion 🧠
-
+- Press `Return` twice to execute the code ▶️
 ---
 
 ## Special Key Mapping ⌨️
