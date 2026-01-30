@@ -1,6 +1,6 @@
 # 💎 Pro Editor Pocket For Picoruby ✨
 
-![Calculator Demo](image/main.jpg)
+![Demo](image/main.jpg)
 
 🚀 **VS Code Like Editor in your pocket!** Write and execute Ruby code 
 
@@ -19,13 +19,13 @@ git submodule update --init --recursive
 
 **➕ Add to SRCS:**
 ```cmake
-${COMPONENT_DIR}/../tft/ports/esp32/tft_native.c
-${COMPONENT_DIR}/../tft/ports/esp32/st7789_spi.c
+${COMPONENT_DIR}/../picoruby-tft/ports/esp32/tft_native.c
+${COMPONENT_DIR}/../picoruby-tft/ports/esp32/st7789_spi.c
 ```
 
 **➕ Add to INCLUDE_DIRS:**
 ```cmake
-${COMPONENT_DIR}/../tft/include
+${COMPONENT_DIR}/../picoruby-tft/include
 ```
 
 ### 3️⃣ Update build configuration
@@ -33,7 +33,7 @@ ${COMPONENT_DIR}/../tft/include
 📝 Edit `components/picoruby-esp32/picoruby/build_config/xtensa-esp.rb`:
 
 ```ruby
-conf.gem File.expand_path('../../tft', __dir__)
+conf.gem File.expand_path('../../picoruby-tft', __dir__)
 ```
 
 ### 4 Build and flash 🔥
