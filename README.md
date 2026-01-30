@@ -1,6 +1,6 @@
 # Pro Editor Pocket for PicoRuby 🧑‍💻✨
 
-![Demo](image/tdeck-main.png)
+![Demo](image/tdeck-display.png)
 
 ## A VS Code–like Editor in Your Pocket 🎒
 
@@ -66,8 +66,6 @@ idf.py flash
 ---
 
 ## Features ✨
-
-![Demo](image/tdeck-display.jpg)
 
 - Line numbers with automatic alignment 📏
 - Ruby syntax highlighting (keywords, strings, numbers, variables, etc.) 🎨
