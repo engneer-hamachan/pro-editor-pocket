@@ -91,6 +91,7 @@ then holding `Shift` while pressing the corresponding key.
 - `}` : `Shift + B`
 - `<` : `Shift + Z`
 - `>` : `Shift + X`
+- `|` : `Shift + $`
 
 ---
 

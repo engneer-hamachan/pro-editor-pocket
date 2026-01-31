@@ -131,12 +131,18 @@ def tokenize(code)
         tokens << current_token
         current_token = ''
         in_string = false
+        string_end_char = ''
       end
     elsif c == "'" || c == '"'
       tokens << current_token if current_token != ''
       current_token = c
       in_string = true
-      string_end_char = c
+
+      if c == "'"
+        string_end_char = "'"
+      else
+        string_end_char = '"'
+      end
     elsif c == ' '
       tokens << current_token if current_token != ''
       tokens << ' '
@@ -817,6 +823,12 @@ loop do
       $completion_index = 0
       need_line_redraw = true
 
+    elsif key_event == 224
+      char = '|'
+      code << char
+      $completion_index = 0
+      need_line_redraw = true
+
     elsif key_event >= 32 && key_event < 127
       char = key_event.chr
       code << char
@@ -876,7 +888,7 @@ loop do
           need_line_redraw = true
         end
         next
-      elsif c_high && !click_pressed && $completion_chars.is_a?(String)
+      elsif $completion_chars.is_a?(String) && c_high && !click_pressed
         up_pressed = true
         down_pressed = true
         left_pressed = true
@@ -889,7 +901,7 @@ loop do
         need_line_redraw = true
         next
 
-      elsif c_high && !click_pressed && $completion_candidates.length > 0
+      elsif c_high && !click_pressed
         up_pressed = true
         down_pressed = true
         left_pressed = true
