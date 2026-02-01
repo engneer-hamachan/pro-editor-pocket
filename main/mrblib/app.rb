@@ -830,8 +830,8 @@ loop do
       $completion_index = 0
       need_line_redraw = true
 
-    # SDCard save (!)
-    elsif key_event == 33
+    # SDCard save
+    elsif key_event == 20
       full_code = ''
       code_lines.each do |line|
         full_code << "#{'  ' * line[:indent]}#{line[:text]}\n"
@@ -846,8 +846,8 @@ loop do
       draw_status(result ? 'Saved!' : 'Save failed', current_row)
       need_full_redraw = true
 
-    # SDCard load (?)
-    elsif key_event == 63
+    # SDCard load
+    elsif key_event == 2
       loaded = SDCard.load
       TFT.init
       TFT.fill_screen(0x070707)
