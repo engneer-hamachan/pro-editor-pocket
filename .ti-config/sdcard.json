@@ -1,0 +1,35 @@
+{
+  "frame": "Builtin",
+  "class": "SDCard",
+  "extends": [],
+  "instance_methods": [],
+  "class_methods": [
+    {
+      "name": "save",
+      "arguments": [
+        {
+          "type": [
+            "String"
+          ]
+        }
+      ],
+      "return_type": {
+        "type": [
+          "Bool"
+        ]
+      },
+      "document": ""
+    },
+    {
+      "name": "load",
+      "arguments": [],
+      "return_type": {
+        "type": [
+          "String"
+        ]
+      },
+      "document": ""
+    }
+  ],
+  "constants": null
+}
