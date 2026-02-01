@@ -838,19 +838,12 @@ loop do
       end
       full_code << "#{'  ' * indent_ct}#{code}" if code != ''
 
-      if SDCard.save(full_code)
-        TFT.init
-        TFT.fill_screen(0x070707)
-        draw_ui
-        draw_status('Saved to SD', current_row)
-      else
-        TFT.init
-        TFT.fill_screen(0x070707)
-        draw_ui
-        draw_status('Save failed', current_row)
-      end
-      sleep_ms 1000
-      draw_status('--NORMAL--', current_row)
+      result = SDCard.save(full_code)
+      TFT.init
+      TFT.fill_screen(0x070707)
+      draw_ui
+      $last_status_line = nil
+      draw_status(result ? 'Saved!' : 'Save failed', current_row)
       need_full_redraw = true
 
     # SDCard load (?)
@@ -871,14 +864,9 @@ loop do
         indent_ct = 0
         current_row = code_lines.length + 1
         execute_code = loaded + "\n"
-        draw_status('Loaded from SD', current_row)
-        sleep_ms 1000
-        draw_status('--NORMAL--', current_row)
-      else
-        draw_status('Load failed', current_row)
-        sleep_ms 1000
-        draw_status('--NORMAL--', current_row)
       end
+      $last_status_line = nil
+      draw_status(loaded ? 'Loaded!' : 'Load failed', current_row)
       need_full_redraw = true
 
     elsif key_event >= 32 && key_event < 127
