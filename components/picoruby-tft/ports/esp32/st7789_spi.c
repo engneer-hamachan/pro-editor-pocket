@@ -89,6 +89,13 @@ static void st7789_set_addr_window(int16_t x0, int16_t y0, int16_t x1, int16_t y
 
 bool st7789_init(void)
 {
+    // Already initialized - just re-add SPI device if needed
+    if (spi_handle != NULL) {
+        ESP_LOGI(TAG, "ST7789 already initialized, re-adding SPI device");
+        spi_bus_remove_device(spi_handle);
+        spi_handle = NULL;
+    }
+
     ESP_LOGI(TAG, "Initializing ST7789 display...");
 
     // Initialize power pin
@@ -149,11 +156,15 @@ bool st7789_init(void)
     };
 
     esp_err_t ret = spi_bus_initialize(SPI2_HOST, &bus_cfg, SPI_DMA_CH_AUTO);
-    if (ret != ESP_OK) {
+    if (ret == ESP_ERR_INVALID_STATE) {
+        // SPI bus already initialized, this is OK
+        ESP_LOGI(TAG, "SPI bus already initialized");
+    } else if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize SPI bus: %s", esp_err_to_name(ret));
         return false;
+    } else {
+        ESP_LOGI(TAG, "SPI bus initialized");
     }
-    ESP_LOGI(TAG, "SPI bus initialized");
 
     // Configure SPI device
     spi_device_interface_config_t dev_cfg = {

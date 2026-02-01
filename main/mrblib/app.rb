@@ -3,6 +3,7 @@ require 'i2c'
 require 'gpio'
 require 'adc'
 require 'tft'
+require 'sdcard'
 
 GPIO.pull_up_at 10
 boot = GPIO.new(10, GPIO::OUT)
@@ -828,6 +829,57 @@ loop do
       code << char
       $completion_index = 0
       need_line_redraw = true
+
+    # SDCard save (!)
+    elsif key_event == 33
+      full_code = ''
+      code_lines.each do |line|
+        full_code << "#{'  ' * line[:indent]}#{line[:text]}\n"
+      end
+      full_code << "#{'  ' * indent_ct}#{code}" if code != ''
+
+      if SDCard.save(full_code)
+        TFT.init
+        TFT.fill_screen(0x070707)
+        draw_ui
+        draw_status('Saved to SD', current_row)
+      else
+        TFT.init
+        TFT.fill_screen(0x070707)
+        draw_ui
+        draw_status('Save failed', current_row)
+      end
+      sleep_ms 1000
+      draw_status('--NORMAL--', current_row)
+      need_full_redraw = true
+
+    # SDCard load (?)
+    elsif key_event == 63
+      loaded = SDCard.load
+      TFT.init
+      TFT.fill_screen(0x070707)
+      draw_ui
+      if loaded
+        lines = loaded.split("\n")
+        code_lines = []
+        lines.each do |line|
+          stripped = line.lstrip
+          indent = (line.length - stripped.length) / 2
+          code_lines << {text: stripped, indent: indent}
+        end
+        code = ''
+        indent_ct = 0
+        current_row = code_lines.length + 1
+        execute_code = loaded + "\n"
+        draw_status('Loaded from SD', current_row)
+        sleep_ms 1000
+        draw_status('--NORMAL--', current_row)
+      else
+        draw_status('Load failed', current_row)
+        sleep_ms 1000
+        draw_status('--NORMAL--', current_row)
+      end
+      need_full_redraw = true
 
     elsif key_event >= 32 && key_event < 127
       char = key_event.chr
