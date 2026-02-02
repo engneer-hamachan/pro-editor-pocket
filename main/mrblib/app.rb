@@ -16,7 +16,6 @@ left = GPIO.new(1, GPIO::IN)
 right = GPIO.new(2, GPIO::IN) 
 up = GPIO.new(3, GPIO::IN) 
 down = GPIO.new(15, GPIO::IN) 
-click = GPIO.new(0, GPIO::IN) 
 
 # Internal constants to ignore in completion
 INTERNAL_CONSTANTS = [
@@ -489,7 +488,7 @@ def draw_slot_modal(mode)
   end
 
   # Instructions
-  inst = 'Ball:Select Click:OK'
+  inst = 'Ball:Select Return:OK'
   inst_x = box_x + (box_w - inst.length * 6) / 2
   draw_text(inst, inst_x, box_y + box_h - 12, 0x6E6E6E)
 end
@@ -651,7 +650,6 @@ right_pressed = right.high?
 left_pressed = left.high?
 up_pressed = up.high?
 down_pressed = down.high?
-click_pressed = click.high?
 loop_counter = 0
 
 sandbox = Sandbox.new('')
@@ -681,6 +679,50 @@ loop do
     # Cancel slot modal with backspace
     if $slot_modal_mode && key_event == 8
       close_slot_modal
+      need_full_redraw = true
+      next
+    end
+
+    # Select slot with return key
+    if $slot_modal_mode && key_event == 13
+      slot = $slot_selected
+      mode = $slot_modal_mode
+      close_slot_modal
+
+      if mode == :save
+        full_code = ''
+        code_lines.each do |line|
+          full_code << "#{'  ' * line[:indent]}#{line[:text]}\n"
+        end
+        full_code << "#{'  ' * indent_ct}#{code}" if code != ''
+
+        save_result = SDCard.save(slot, full_code)
+        TFT.init
+        TFT.fill_screen(0x070707)
+        draw_ui
+        $last_status_line = nil
+        draw_status(save_result ? "Saved to #{slot}!" : 'Save failed', current_row)
+      else
+        loaded = SDCard.load(slot)
+        TFT.init
+        TFT.fill_screen(0x070707)
+        draw_ui
+        if loaded
+          lines = loaded.split("\n")
+          code_lines = []
+          lines.each do |line|
+            stripped = line.lstrip
+            indent = (line.length - stripped.length) / 2
+            code_lines << {text: stripped, indent: indent}
+          end
+          code = ''
+          indent_ct = 0
+          current_row = code_lines.length + 1
+          execute_code = loaded + "\n"
+        end
+        $last_status_line = nil
+        draw_status(loaded ? "Loaded from #{slot}!" : 'Load failed', current_row)
+      end
       need_full_redraw = true
       next
     end
@@ -919,7 +961,7 @@ loop do
 
   # Track ball (check every 5 loops)
   if loop_counter >= 5
-    if $completion_candidates.length == 0
+    if $completion_candidates.length == 0 && $slot_modal_mode.nil?
       down_pressed = true
     end
 
@@ -929,7 +971,6 @@ loop do
     l_high = left.high?
     u_high = up.high?
     d_high = down.high?
-    c_high = click.high?
 
     # Debug: show trackball state
     # TFT.fill_rect(200, 4, 120, 14, 0x2D2D2D)
@@ -940,7 +981,6 @@ loop do
     left_pressed = false if !l_high
     up_pressed = false if !u_high
     down_pressed = false if !d_high
-    click_pressed = false if !c_high
 
     # Slot modal navigation
     if $slot_modal_mode
@@ -954,7 +994,6 @@ loop do
           $slot_selected -= 2
           draw_slot_modal($slot_modal_mode)
         end
-        next
       elsif d_high && !down_pressed
         up_pressed = true
         down_pressed = true
@@ -965,7 +1004,6 @@ loop do
           $slot_selected += 2
           draw_slot_modal($slot_modal_mode)
         end
-        next
       elsif l_high && !left_pressed
         up_pressed = true
         down_pressed = true
@@ -976,7 +1014,6 @@ loop do
           $slot_selected -= 1
           draw_slot_modal($slot_modal_mode)
         end
-        next
       elsif r_high && !right_pressed
         up_pressed = true
         down_pressed = true
@@ -987,55 +1024,8 @@ loop do
           $slot_selected += 1
           draw_slot_modal($slot_modal_mode)
         end
-        next
-      elsif c_high && !click_pressed
-        up_pressed = true
-        down_pressed = true
-        left_pressed = true
-        right_pressed = true
-        click_pressed = true
-
-        slot = $slot_selected
-        mode = $slot_modal_mode
-        close_slot_modal
-
-        if mode == :save
-          full_code = ''
-          code_lines.each do |line|
-            full_code << "#{'  ' * line[:indent]}#{line[:text]}\n"
-          end
-          full_code << "#{'  ' * indent_ct}#{code}" if code != ''
-
-          save_result = SDCard.save(slot, full_code)
-          TFT.init
-          TFT.fill_screen(0x070707)
-          draw_ui
-          $last_status_line = nil
-          draw_status(save_result ? "Saved to #{slot}!" : 'Save failed', current_row)
-        else
-          loaded = SDCard.load(slot)
-          TFT.init
-          TFT.fill_screen(0x070707)
-          draw_ui
-          if loaded
-            lines = loaded.split("\n")
-            code_lines = []
-            lines.each do |line|
-              stripped = line.lstrip
-              indent = (line.length - stripped.length) / 2
-              code_lines << {text: stripped, indent: indent}
-            end
-            code = ''
-            indent_ct = 0
-            current_row = code_lines.length + 1
-            execute_code = loaded + "\n"
-          end
-          $last_status_line = nil
-          draw_status(loaded ? "Loaded from #{slot}!" : 'Load failed', current_row)
-        end
-        need_full_redraw = true
-        next
       end
+
       next
     end
 
@@ -1046,51 +1036,24 @@ loop do
         down_pressed = true
         left_pressed = true
         right_pressed = true
-        click_pressed = true
 
         if $completion_index > 0
           $completion_index -= 1
           need_line_redraw = true
         end
-        next
       elsif d_high && !down_pressed
         up_pressed = true
         down_pressed = true
         left_pressed = true
         right_pressed = true
-        click_pressed = true
 
         if $completion_index < $completion_candidates.length - 1
           $completion_index += 1
           need_line_redraw = true
         end
-        next
-      elsif $completion_chars.is_a?(String) && c_high && !click_pressed
-        up_pressed = true
-        down_pressed = true
-        left_pressed = true
-        right_pressed = true
-        click_pressed = true
-
-        code << $completion_chars
-        $completion_index = 0
-        $completion_chars = nil
-        need_line_redraw = true
-        next
-
-      elsif c_high && !click_pressed
-        up_pressed = true
-        down_pressed = true
-        left_pressed = true
-        right_pressed = true
-        click_pressed = true
-
-        # Skip selected - just close completion modal
-        $completion_index = 0
-        $completion_candidates = []
-        clear_completion_box
-        next
       end
+
+      next
     end
 
     # Result scroll with left/right
@@ -1099,7 +1062,6 @@ loop do
       down_pressed = true
       left_pressed = true
       right_pressed = true
-      click_pressed = true
 
       res_str = result.to_s
       check_offset = result_offset + 8
@@ -1107,13 +1069,11 @@ loop do
         result_offset += 8
         need_result_redraw = true
       end
-      next
     elsif result && l_high && !left_pressed
       up_pressed = true
       down_pressed = true
       left_pressed = true
       right_pressed = true
-      click_pressed = true
 
       check_offset = result_offset - 8
       if check_offset >= 0
@@ -1123,18 +1083,9 @@ loop do
       end
 
       need_result_redraw = true
-      next
-    elsif result && c_high && !click_pressed
-      up_pressed = true
-      down_pressed = true
-      left_pressed = true
-      right_pressed = true
-      click_pressed = true
-
-      result_offset = 0
-      need_result_redraw = true
-      next
     end
+
+    next
   end
 
   # Redraw
