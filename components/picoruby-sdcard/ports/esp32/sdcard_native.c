@@ -25,9 +25,11 @@ static void c_sdcard_init(mrbc_vm *vm, mrbc_value *v, int argc)
 }
 
 /* ==============================================
- * Method: SDCard.save(code_string)
+ * Method: SDCard.save(code_string) or SDCard.save(slot, code_string)
  * Save code to SD card
- * Args: code_string - Ruby string to save
+ * Args:
+ *   1 arg:  code_string - Ruby string to save (uses slot 0)
+ *   2 args: slot (0-7), code_string - save to specific slot
  * Returns: true on success, false on failure
  * ============================================== */
 static void c_sdcard_save(mrbc_vm *vm, mrbc_value *v, int argc)
@@ -37,14 +39,31 @@ static void c_sdcard_save(mrbc_vm *vm, mrbc_value *v, int argc)
         return;
     }
 
-    // Check if argument is a string
-    if (mrbc_type(v[1]) != MRBC_TT_STRING) {
-        SET_FALSE_RETURN();
-        return;
+    int slot = 0;
+    const char *code = NULL;
+
+    if (argc == 1) {
+        // SDCard.save(code) - save to slot 0
+        if (mrbc_type(v[1]) != MRBC_TT_STRING) {
+            SET_FALSE_RETURN();
+            return;
+        }
+        code = (const char *)GET_STRING_ARG(1);
+    } else {
+        // SDCard.save(slot, code) - save to specified slot
+        if (mrbc_type(v[1]) != MRBC_TT_INTEGER) {
+            SET_FALSE_RETURN();
+            return;
+        }
+        if (mrbc_type(v[2]) != MRBC_TT_STRING) {
+            SET_FALSE_RETURN();
+            return;
+        }
+        slot = GET_INT_ARG(1);
+        code = (const char *)GET_STRING_ARG(2);
     }
 
-    const char *code = (const char *)GET_STRING_ARG(1);
-    bool success = sdcard_write_file("/sdcard/code.rb", code);
+    bool success = sdcard_write_slot(slot, code);
 
     if (success) {
         SET_TRUE_RETURN();
@@ -54,14 +73,28 @@ static void c_sdcard_save(mrbc_vm *vm, mrbc_value *v, int argc)
 }
 
 /* ==============================================
- * Method: SDCard.load
+ * Method: SDCard.load or SDCard.load(slot)
  * Load code from SD card
+ * Args:
+ *   0 args: load from slot 0
+ *   1 arg:  slot (0-7) - load from specific slot
  * Returns: String content or nil on failure
  * ============================================== */
 static void c_sdcard_load(mrbc_vm *vm, mrbc_value *v, int argc)
 {
+    int slot = 0;
+
+    if (argc >= 1) {
+        // SDCard.load(slot) - load from specified slot
+        if (mrbc_type(v[1]) != MRBC_TT_INTEGER) {
+            SET_NIL_RETURN();
+            return;
+        }
+        slot = GET_INT_ARG(1);
+    }
+
     size_t len = 0;
-    char *content = sdcard_read_file("/sdcard/code.rb", &len);
+    char *content = sdcard_read_slot(slot, &len);
 
     if (content == NULL || len == 0) {
         SET_NIL_RETURN();

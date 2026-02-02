@@ -9,8 +9,12 @@
 
 static const char *TAG = "SDCard";
 
+// Legacy defines (kept for reference)
 #define CODE_FILE_START_SECTOR 1024  // Start writing from sector 1024
 #define MAX_CODE_SIZE (64 * 1024)    // Max 64KB code
+
+// Calculate start sector for a given slot
+#define SLOT_SECTOR(slot) (SLOT_START_SECTOR + (slot) * SLOT_SIZE_SECTORS)
 
 // Set other SPI devices CS to HIGH before SD operation
 static void prepare_spi_for_sd(void)
@@ -99,6 +103,32 @@ bool sdcard_init(void)
 
 bool sdcard_write_file(const char *path, const char *data)
 {
+    // For backward compatibility, write to slot 0
+    (void)path;  // path is ignored, using slot-based storage
+    return sdcard_write_slot(0, data);
+}
+
+char* sdcard_read_file(const char *path, size_t *len)
+{
+    // For backward compatibility, read from slot 0
+    (void)path;  // path is ignored, using slot-based storage
+    return sdcard_read_slot(0, len);
+}
+
+bool sdcard_is_mounted(void)
+{
+    // Always return false since we don't keep it mounted
+    return false;
+}
+
+bool sdcard_write_slot(int slot, const char *data)
+{
+    // Validate slot number
+    if (slot < 0 || slot >= MAX_SLOTS) {
+        ESP_LOGE(TAG, "Invalid slot number: %d (must be 0-%d)", slot, MAX_SLOTS - 1);
+        return false;
+    }
+
     sdspi_dev_handle_t handle;
     sdmmc_card_t *card = sdcard_begin(&handle);
     if (card == NULL) {
@@ -106,15 +136,18 @@ bool sdcard_write_file(const char *path, const char *data)
     }
 
     size_t data_len = strlen(data);
-    if (data_len > MAX_CODE_SIZE - 4) {
-        ESP_LOGE(TAG, "Data too large: %zu bytes (max %d)", data_len, MAX_CODE_SIZE - 4);
+    if (data_len > MAX_SLOT_DATA_SIZE) {
+        ESP_LOGE(TAG, "Data too large: %zu bytes (max %d for slot)", data_len, MAX_SLOT_DATA_SIZE);
         sdcard_end(card, handle);
         return false;
     }
 
-    // Calculate sectors needed (512 bytes per sector)
+    // Calculate sectors needed (up to SLOT_SIZE_SECTORS)
     size_t total_size = data_len + 4;  // 4 bytes for length header
     size_t sectors_needed = (total_size + 511) / 512;
+    if (sectors_needed > SLOT_SIZE_SECTORS) {
+        sectors_needed = SLOT_SIZE_SECTORS;
+    }
 
     // Allocate buffer aligned to sector size
     uint8_t *buffer = (uint8_t *)heap_caps_malloc(sectors_needed * 512, MALLOC_CAP_DMA);
@@ -135,30 +168,40 @@ bool sdcard_write_file(const char *path, const char *data)
     // Copy data after length
     memcpy(buffer + 4, data, data_len);
 
-    ESP_LOGI(TAG, "Writing %zu bytes to SD card...", data_len);
+    uint32_t start_sector = SLOT_SECTOR(slot);
+    ESP_LOGI(TAG, "Writing %zu bytes to slot %d (sector %lu)...", data_len, slot, (unsigned long)start_sector);
 
-    esp_err_t ret = sdmmc_write_sectors(card, buffer, CODE_FILE_START_SECTOR, sectors_needed);
+    esp_err_t ret = sdmmc_write_sectors(card, buffer, start_sector, sectors_needed);
     free(buffer);
 
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to write to SD card: %s", esp_err_to_name(ret));
+        ESP_LOGE(TAG, "Failed to write to slot %d: %s", slot, esp_err_to_name(ret));
         sdcard_end(card, handle);
         return false;
     }
 
-    ESP_LOGI(TAG, "Write successful");
+    ESP_LOGI(TAG, "Write to slot %d successful", slot);
     sdcard_end(card, handle);
     return true;
 }
 
-char* sdcard_read_file(const char *path, size_t *len)
+char* sdcard_read_slot(int slot, size_t *len)
 {
+    // Validate slot number
+    if (slot < 0 || slot >= MAX_SLOTS) {
+        ESP_LOGE(TAG, "Invalid slot number: %d (must be 0-%d)", slot, MAX_SLOTS - 1);
+        *len = 0;
+        return NULL;
+    }
+
     sdspi_dev_handle_t handle;
     sdmmc_card_t *card = sdcard_begin(&handle);
     if (card == NULL) {
         *len = 0;
         return NULL;
     }
+
+    uint32_t start_sector = SLOT_SECTOR(slot);
 
     // Read first sector to get length
     uint8_t *header = (uint8_t *)heap_caps_malloc(512, MALLOC_CAP_DMA);
@@ -169,9 +212,9 @@ char* sdcard_read_file(const char *path, size_t *len)
         return NULL;
     }
 
-    esp_err_t ret = sdmmc_read_sectors(card, header, CODE_FILE_START_SECTOR, 1);
+    esp_err_t ret = sdmmc_read_sectors(card, header, start_sector, 1);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read header: %s", esp_err_to_name(ret));
+        ESP_LOGE(TAG, "Failed to read header from slot %d: %s", slot, esp_err_to_name(ret));
         free(header);
         sdcard_end(card, handle);
         *len = 0;
@@ -181,8 +224,8 @@ char* sdcard_read_file(const char *path, size_t *len)
     // Read length from first 4 bytes
     size_t data_len = header[0] | (header[1] << 8) | (header[2] << 16) | (header[3] << 24);
 
-    if (data_len == 0 || data_len > MAX_CODE_SIZE) {
-        ESP_LOGW(TAG, "Invalid data length: %zu", data_len);
+    if (data_len == 0 || data_len > MAX_SLOT_DATA_SIZE) {
+        ESP_LOGW(TAG, "Invalid data length in slot %d: %zu", slot, data_len);
         free(header);
         sdcard_end(card, handle);
         *len = 0;
@@ -205,9 +248,9 @@ char* sdcard_read_file(const char *path, size_t *len)
             return NULL;
         }
 
-        ret = sdmmc_read_sectors(card, buffer, CODE_FILE_START_SECTOR, sectors_needed);
+        ret = sdmmc_read_sectors(card, buffer, start_sector, sectors_needed);
         if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to read data: %s", esp_err_to_name(ret));
+            ESP_LOGE(TAG, "Failed to read data from slot %d: %s", slot, esp_err_to_name(ret));
             free(buffer);
             sdcard_end(card, handle);
             *len = 0;
@@ -232,13 +275,7 @@ char* sdcard_read_file(const char *path, size_t *len)
     free(buffer);
 
     *len = data_len;
-    ESP_LOGI(TAG, "Read %zu bytes from SD card", data_len);
+    ESP_LOGI(TAG, "Read %zu bytes from slot %d", data_len, slot);
     sdcard_end(card, handle);
     return content;
-}
-
-bool sdcard_is_mounted(void)
-{
-    // Always return false since we don't keep it mounted
-    return false;
 }
