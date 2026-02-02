@@ -442,6 +442,64 @@ $completion_index = 0
 $draw_completion_box_y = CODE_AREA_Y_START
 $completion_box_visible = false
 
+# Slot selection modal
+$slot_modal_mode = nil  # nil, :save, :load
+$slot_selected = 0
+
+# ti-doc: Draw slot selection modal
+def draw_slot_modal(mode)
+  # Modal background
+  box_x = 80
+  box_y = 50
+  box_w = 160
+  box_h = 120
+
+  # Shadow
+  TFT.fill_rect(box_x + 2, box_y + 2, box_w, box_h, 0x000000)
+
+  # Main background
+  TFT.fill_rect(box_x, box_y, box_w, box_h, 0x252526)
+
+  # Border
+  TFT.draw_rect(box_x, box_y, box_w, box_h, 0x007ACC)
+
+  # Title
+  title = mode == :save ? 'Save to Slot' : 'Load from Slot'
+  title_x = box_x + (box_w - title.length * 6) / 2
+  draw_text(title, title_x, box_y + 6, 0xD4D4D4)
+
+  # Separator
+  TFT.draw_fast_h_line(box_x + 1, box_y + 18, box_w - 2, 0x303030)
+
+  # Slots (0-7) in 2 columns
+  8.times do |i|
+    col = i % 2
+    row = i / 2
+    slot_x = box_x + 10 + col * 75
+    slot_y = box_y + 24 + row * 22
+
+    # Highlight selected
+    if i == $slot_selected
+      TFT.fill_rect(slot_x - 2, slot_y - 2, 70, 18, 0x094771)
+    end
+
+    # Slot label
+    label = "Slot #{i}"
+    draw_text(label, slot_x, slot_y, 0xD4D4D4)
+  end
+
+  # Instructions
+  inst = 'Ball:Select Click:OK'
+  inst_x = box_x + (box_w - inst.length * 6) / 2
+  draw_text(inst, inst_x, box_y + box_h - 12, 0x6E6E6E)
+end
+
+# ti-doc: Close slot modal and restore screen
+def close_slot_modal
+  $slot_modal_mode = nil
+  $slot_selected = 0
+end
+
 # ti-doc: Load constants for completion
 def load_constants
   Object.constants.each do |constant|
@@ -619,6 +677,13 @@ loop do
     # end
 
     draw_status('--NORMAL--', current_row)
+
+    # Cancel slot modal with backspace
+    if $slot_modal_mode && key_event == 8
+      close_slot_modal
+      need_full_redraw = true
+      next
+    end
 
     # alt + c
     if key_event == 12
@@ -830,44 +895,19 @@ loop do
       $completion_index = 0
       need_line_redraw = true
 
-    # SDCard save
+    # SDCard save - open slot modal
     elsif key_event == 20
-      full_code = ''
-      code_lines.each do |line|
-        full_code << "#{'  ' * line[:indent]}#{line[:text]}\n"
-      end
-      full_code << "#{'  ' * indent_ct}#{code}" if code != ''
+      $slot_modal_mode = :save
+      $slot_selected = 0
+      draw_slot_modal(:save)
+      next
 
-      result = SDCard.save(full_code)
-      TFT.init
-      TFT.fill_screen(0x070707)
-      draw_ui
-      $last_status_line = nil
-      draw_status(result ? 'Saved!' : 'Save failed', current_row)
-      need_full_redraw = true
-
-    # SDCard load
+    # SDCard load - open slot modal
     elsif key_event == 2
-      loaded = SDCard.load
-      TFT.init
-      TFT.fill_screen(0x070707)
-      draw_ui
-      if loaded
-        lines = loaded.split("\n")
-        code_lines = []
-        lines.each do |line|
-          stripped = line.lstrip
-          indent = (line.length - stripped.length) / 2
-          code_lines << {text: stripped, indent: indent}
-        end
-        code = ''
-        indent_ct = 0
-        current_row = code_lines.length + 1
-        execute_code = loaded + "\n"
-      end
-      $last_status_line = nil
-      draw_status(loaded ? 'Loaded!' : 'Load failed', current_row)
-      need_full_redraw = true
+      $slot_modal_mode = :load
+      $slot_selected = 0
+      draw_slot_modal(:load)
+      next
 
     elsif key_event >= 32 && key_event < 127
       char = key_event.chr
@@ -901,6 +941,103 @@ loop do
     up_pressed = false if !u_high
     down_pressed = false if !d_high
     click_pressed = false if !c_high
+
+    # Slot modal navigation
+    if $slot_modal_mode
+      if u_high && !up_pressed
+        up_pressed = true
+        down_pressed = true
+        left_pressed = true
+        right_pressed = true
+
+        if $slot_selected >= 2
+          $slot_selected -= 2
+          draw_slot_modal($slot_modal_mode)
+        end
+        next
+      elsif d_high && !down_pressed
+        up_pressed = true
+        down_pressed = true
+        left_pressed = true
+        right_pressed = true
+
+        if $slot_selected <= 5
+          $slot_selected += 2
+          draw_slot_modal($slot_modal_mode)
+        end
+        next
+      elsif l_high && !left_pressed
+        up_pressed = true
+        down_pressed = true
+        left_pressed = true
+        right_pressed = true
+
+        if $slot_selected % 2 == 1
+          $slot_selected -= 1
+          draw_slot_modal($slot_modal_mode)
+        end
+        next
+      elsif r_high && !right_pressed
+        up_pressed = true
+        down_pressed = true
+        left_pressed = true
+        right_pressed = true
+
+        if $slot_selected % 2 == 0
+          $slot_selected += 1
+          draw_slot_modal($slot_modal_mode)
+        end
+        next
+      elsif c_high && !click_pressed
+        up_pressed = true
+        down_pressed = true
+        left_pressed = true
+        right_pressed = true
+        click_pressed = true
+
+        slot = $slot_selected
+        mode = $slot_modal_mode
+        close_slot_modal
+
+        if mode == :save
+          full_code = ''
+          code_lines.each do |line|
+            full_code << "#{'  ' * line[:indent]}#{line[:text]}\n"
+          end
+          full_code << "#{'  ' * indent_ct}#{code}" if code != ''
+
+          save_result = SDCard.save(slot, full_code)
+          TFT.init
+          TFT.fill_screen(0x070707)
+          draw_ui
+          $last_status_line = nil
+          draw_status(save_result ? "Saved to #{slot}!" : 'Save failed', current_row)
+        else
+          loaded = SDCard.load(slot)
+          TFT.init
+          TFT.fill_screen(0x070707)
+          draw_ui
+          if loaded
+            lines = loaded.split("\n")
+            code_lines = []
+            lines.each do |line|
+              stripped = line.lstrip
+              indent = (line.length - stripped.length) / 2
+              code_lines << {text: stripped, indent: indent}
+            end
+            code = ''
+            indent_ct = 0
+            current_row = code_lines.length + 1
+            execute_code = loaded + "\n"
+          end
+          $last_status_line = nil
+          draw_status(loaded ? "Loaded from #{slot}!" : 'Load failed', current_row)
+        end
+        need_full_redraw = true
+        next
+      end
+      next
+    end
 
     # Completion navigation
     if $completion_candidates.length > 0

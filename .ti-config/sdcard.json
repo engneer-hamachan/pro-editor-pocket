@@ -9,6 +9,11 @@
       "arguments": [
         {
           "type": [
+            "Integer"
+          ]
+        },
+        {
+          "type": [
             "String"
           ]
         }
@@ -22,7 +27,13 @@
     },
     {
       "name": "load",
-      "arguments": [],
+      "arguments": [
+        {
+          "type": [
+            "Integer"
+          ]
+        }
+      ],
       "return_type": {
         "type": [
           "String"
