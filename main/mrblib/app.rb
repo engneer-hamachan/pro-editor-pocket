@@ -246,14 +246,14 @@ def draw_ruby_icon(x, y, c = 0xCC342D)
 end
 
 # ti-doc: Draw Static UI frame
-def draw_ui
+def draw_ui file_name
   # Tab bar background (full width)
   TFT.fill_rect(0, 0, 320, 22, 0x2D2D2D)
 
   icon_width = 12
 
   # Start Active tab (calc.rb)
-  tab_text = 'app.rb'
+  tab_text = file_name
   tab_width = (tab_text.length * 6) + 42
 
   # Active tab background (same as editor bg)
@@ -430,7 +430,7 @@ def draw_status(msg, line_num = nil)
 end
 
 # Initial draw
-draw_ui
+draw_ui 'app.rb'
 draw_status('--NORMAL--', 1)
 
 # Completion
@@ -699,14 +699,14 @@ loop do
         save_result = SDCard.save(slot, full_code)
         TFT.init
         TFT.fill_screen(0x070707)
-        draw_ui
+        draw_ui 'slot' + slot.to_s + '.rb'
         $last_status_line = nil
         draw_status(save_result ? "Saved to #{slot}!" : 'Save failed', current_row)
       else
         loaded = SDCard.load(slot)
         TFT.init
         TFT.fill_screen(0x070707)
-        draw_ui
+        draw_ui 'slot' + slot.to_s + '.rb'
         if loaded
           lines = loaded.split("\n")
           code_lines = []
