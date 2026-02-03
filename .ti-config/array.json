@@ -38,7 +38,7 @@
       "document": "Get element at specified position"
     },
     {
-      "name": "&",
+      "name": "\u0026",
       "arguments": [
         {
           "type": [
@@ -50,7 +50,8 @@
         "type": [
           "Self"
         ]
-      }
+      },
+      "document": ""
     },
     {
       "name": "*",
@@ -120,7 +121,7 @@
       "document": "Append element to end"
     },
     {
-      "name": "<=>",
+      "name": "\u003c=\u003e",
       "arguments": [
         {
           "type": [
@@ -133,7 +134,7 @@
           "OptionalInt"
         ]
       },
-      "document": "Compare arrays. Returns -1 if self < other, 0 if self == other, 1 if self > other"
+      "document": "Compare arrays. Returns -1 if self \u003c other, 0 if self == other, 1 if self \u003e other"
     },
     {
       "name": "all?",
@@ -145,7 +146,8 @@
         "type": [
           "Bool"
         ]
-      }
+      },
+      "document": ""
     },
     {
       "name": "at",
@@ -203,7 +205,8 @@
         "type": [
           "Int"
         ]
-      }
+      },
+      "document": ""
     },
     {
       "name": "concat",
@@ -401,7 +404,8 @@
           "Self"
         ],
         "is_conditional": true
-      }
+      },
+      "document": ""
     },
     {
       "name": "pop",
@@ -460,7 +464,8 @@
         "type": [
           "Array"
         ]
-      }
+      },
+      "document": ""
     },
     {
       "name": "shift",
@@ -573,7 +578,24 @@
         "type": [
           "Array"
         ]
-      }
+      },
+      "document": ""
+    },
+    {
+      "name": "min",
+      "arguments": [
+        {
+          "type": [
+            "?Untyped"
+          ]
+        }
+      ],
+      "return_type": {
+        "type": [
+          "Untyped"
+        ]
+      },
+      "document": ""
     }
   ],
   "class_methods": [
@@ -595,7 +617,9 @@
         "type": [
           "Array"
         ]
-      }
+      },
+      "document": ""
     }
-  ]
+  ],
+  "constants": null
 }
