@@ -325,7 +325,7 @@ def draw_current_line(current_code, indent_ct, current_row, code_lines_count)
   else
     38 + (2 * indent_ct + $cursor_col) * 6
   end
-  draw_text('_', cursor_x, y, 0xD4D4D4)
+  draw_text('_', cursor_x, y, 0xFFAA00)
 
   draw_completion(current_code, code_lines_count)
 end
@@ -366,7 +366,7 @@ def draw_code_area(code_lines, current_code, indent_ct, current_row)
       else
         38 + (2 * line[:indent] + $cursor_col) * 6
       end
-      draw_text('_', cursor_x, y, 0xD4D4D4)
+      draw_text('_', cursor_x, y, 0xFFAA00)
     end
     y += 10
   end
@@ -387,7 +387,7 @@ def draw_code_area(code_lines, current_code, indent_ct, current_row)
       else
         38 + (2 * indent_ct + $cursor_col) * 6
       end
-      draw_text('_', cursor_x, y, 0xD4D4D4)
+      draw_text('_', cursor_x, y, 0xFFAA00)
     end
   end
 
@@ -654,7 +654,7 @@ def draw_newline_no_scroll(prev_line, current_code, indent_ct, current_row, code
   draw_text("#{' ' * line_number}#{current_row}", 0, y, 0xD4D4D4)
   code_display = "#{'  ' * indent_ct}#{current_code}"
   draw_code_highlighted(code_display, 38, y)
-  draw_text('_', 38 + code_display.length * 6, y, 0xD4D4D4)
+  draw_text('_', 38 + code_display.length * 6, y, 0xFFAA00)
 
   draw_completion(current_code, code_lines_count)
 end
@@ -710,7 +710,7 @@ def draw_line_at(line_index, is_active, code_lines, scroll_start)
     else
       38 + (2 * line[:indent] + $cursor_col) * 6
     end
-    draw_text('_', cursor_x, y, 0xD4D4D4)
+    draw_text('_', cursor_x, y, 0xFFAA00)
   end
 end
 
@@ -735,7 +735,7 @@ def draw_new_line_at(current_code, indent_ct, current_row, code_lines_count, is_
     else
       38 + (2 * indent_ct + $cursor_col) * 6
     end
-    draw_text('_', cursor_x, y, 0xD4D4D4)
+    draw_text('_', cursor_x, y, 0xFFAA00)
   end
 end
 
@@ -935,11 +935,19 @@ loop do
         if $cursor_line_index < code_lines.length - 1
           old_scroll = $scroll_start
           old_index = $cursor_line_index
+          # 視覚的な列位置を計算
+          old_line = code_lines[old_index]
+          visual_col = old_line[:indent] * 2 + ($cursor_col.nil? ? old_line[:text].length : $cursor_col)
           $cursor_line_index += 1
-          # カーソル位置調整
-          new_text = code_lines[$cursor_line_index][:text]
-          if $cursor_col && $cursor_col >= new_text.length
+          # カーソル位置調整（視覚的位置を維持）
+          new_line = code_lines[$cursor_line_index]
+          new_cursor = visual_col - new_line[:indent] * 2
+          if new_cursor < 0
+            $cursor_col = 0
+          elsif new_cursor >= new_line[:text].length
             $cursor_col = nil
+          else
+            $cursor_col = new_cursor
           end
           new_scroll = adjust_scroll($cursor_line_index, code_lines.length)
           if old_scroll != new_scroll
@@ -954,12 +962,20 @@ loop do
           # At last code_line, move to new line
           old_scroll = $scroll_start
           old_index = $cursor_line_index
+          # 視覚的な列位置を計算
+          old_line = code_lines[old_index]
+          visual_col = old_line[:indent] * 2 + ($cursor_col.nil? ? old_line[:text].length : $cursor_col)
           $cursor_line_index = nil
           code = $saved_new_line
           indent_ct = $saved_new_indent
-          # カーソル位置調整
-          if $cursor_col && $cursor_col >= code.length
+          # カーソル位置調整（視覚的位置を維持）
+          new_cursor = visual_col - indent_ct * 2
+          if new_cursor < 0
+            $cursor_col = 0
+          elsif new_cursor >= code.length
             $cursor_col = nil
+          else
+            $cursor_col = new_cursor
           end
           new_scroll = adjust_scroll(nil, code_lines.length)
           if old_scroll != new_scroll
@@ -1412,13 +1428,20 @@ loop do
         # Currently on new line, move to last code_line
         if code_lines.length > 0
           old_scroll = $scroll_start
+          # 視覚的な列位置を計算
+          visual_col = indent_ct * 2 + ($cursor_col.nil? ? code.length : $cursor_col)
           $saved_new_line = code
           $saved_new_indent = indent_ct
           $cursor_line_index = code_lines.length - 1
-          # カーソル位置調整
-          new_text = code_lines[$cursor_line_index][:text]
-          if $cursor_col && $cursor_col >= new_text.length
+          # カーソル位置調整（視覚的位置を維持）
+          new_line = code_lines[$cursor_line_index]
+          new_cursor = visual_col - new_line[:indent] * 2
+          if new_cursor < 0
+            $cursor_col = 0
+          elsif new_cursor >= new_line[:text].length
             $cursor_col = nil
+          else
+            $cursor_col = new_cursor
           end
           new_scroll = adjust_scroll($cursor_line_index, code_lines.length)
 
@@ -1435,11 +1458,19 @@ loop do
       elsif $cursor_line_index > 0
         old_scroll = $scroll_start
         old_index = $cursor_line_index
+        # 視覚的な列位置を計算
+        old_line = code_lines[old_index]
+        visual_col = old_line[:indent] * 2 + ($cursor_col.nil? ? old_line[:text].length : $cursor_col)
         $cursor_line_index -= 1
-        # カーソル位置調整
-        new_text = code_lines[$cursor_line_index][:text]
-        if $cursor_col && $cursor_col >= new_text.length
+        # カーソル位置調整（視覚的位置を維持）
+        new_line = code_lines[$cursor_line_index]
+        new_cursor = visual_col - new_line[:indent] * 2
+        if new_cursor < 0
+          $cursor_col = 0
+        elsif new_cursor >= new_line[:text].length
           $cursor_col = nil
+        else
+          $cursor_col = new_cursor
         end
         new_scroll = adjust_scroll($cursor_line_index, code_lines.length)
 
@@ -1465,11 +1496,19 @@ loop do
       elsif $cursor_line_index < code_lines.length - 1
         old_scroll = $scroll_start
         old_index = $cursor_line_index
+        # 視覚的な列位置を計算
+        old_line = code_lines[old_index]
+        visual_col = old_line[:indent] * 2 + ($cursor_col.nil? ? old_line[:text].length : $cursor_col)
         $cursor_line_index += 1
-        # カーソル位置調整
-        new_text = code_lines[$cursor_line_index][:text]
-        if $cursor_col && $cursor_col >= new_text.length
+        # カーソル位置調整（視覚的位置を維持）
+        new_line = code_lines[$cursor_line_index]
+        new_cursor = visual_col - new_line[:indent] * 2
+        if new_cursor < 0
+          $cursor_col = 0
+        elsif new_cursor >= new_line[:text].length
           $cursor_col = nil
+        else
+          $cursor_col = new_cursor
         end
         new_scroll = adjust_scroll($cursor_line_index, code_lines.length)
 
@@ -1485,12 +1524,20 @@ loop do
         # At last code_line, move to new line
         old_scroll = $scroll_start
         old_index = $cursor_line_index
+        # 視覚的な列位置を計算
+        old_line = code_lines[old_index]
+        visual_col = old_line[:indent] * 2 + ($cursor_col.nil? ? old_line[:text].length : $cursor_col)
         $cursor_line_index = nil
         code = $saved_new_line
         indent_ct = $saved_new_indent
-        # カーソル位置調整
-        if $cursor_col && $cursor_col >= code.length
+        # カーソル位置調整（視覚的位置を維持）
+        new_cursor = visual_col - indent_ct * 2
+        if new_cursor < 0
+          $cursor_col = 0
+        elsif new_cursor >= code.length
           $cursor_col = nil
+        else
+          $cursor_col = new_cursor
         end
         new_scroll = adjust_scroll(nil, code_lines.length)
 
