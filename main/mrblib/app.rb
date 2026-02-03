@@ -320,7 +320,12 @@ def draw_current_line(current_code, indent_ct, current_row, code_lines_count)
 
   code_display = "#{'  ' * indent_ct}#{current_code}"
   draw_code_highlighted(code_display, 38, y)
-  draw_text('_', 38 + code_display.length * 6, y, 0xD4D4D4)
+  cursor_x = if $cursor_col.nil?
+    38 + code_display.length * 6
+  else
+    38 + (2 * indent_ct + $cursor_col) * 6
+  end
+  draw_text('_', cursor_x, y, 0xD4D4D4)
 
   draw_completion(current_code, code_lines_count)
 end
@@ -356,7 +361,12 @@ def draw_code_area(code_lines, current_code, indent_ct, current_row)
     code_display = "#{'  ' * line[:indent]}#{line[:text]}"
     draw_code_highlighted(code_display, 38, y)
     if is_active
-      draw_text('_', 38 + code_display.length * 6, y, 0xD4D4D4)
+      cursor_x = if $cursor_col.nil?
+        38 + code_display.length * 6
+      else
+        38 + (2 * line[:indent] + $cursor_col) * 6
+      end
+      draw_text('_', cursor_x, y, 0xD4D4D4)
     end
     y += 10
   end
@@ -372,7 +382,12 @@ def draw_code_area(code_lines, current_code, indent_ct, current_row)
     code_display = "#{'  ' * indent_ct}#{current_code}"
     draw_code_highlighted(code_display, 38, y)
     if is_new_line_active
-      draw_text('_', 38 + code_display.length * 6, y, 0xD4D4D4)
+      cursor_x = if $cursor_col.nil?
+        38 + code_display.length * 6
+      else
+        38 + (2 * indent_ct + $cursor_col) * 6
+      end
+      draw_text('_', cursor_x, y, 0xD4D4D4)
     end
   end
 
@@ -690,7 +705,12 @@ def draw_line_at(line_index, is_active, code_lines, scroll_start)
   draw_code_highlighted(code_display, 38, y)
 
   if is_active
-    draw_text('_', 38 + code_display.length * 6, y, 0xD4D4D4)
+    cursor_x = if $cursor_col.nil?
+      38 + code_display.length * 6
+    else
+      38 + (2 * line[:indent] + $cursor_col) * 6
+    end
+    draw_text('_', cursor_x, y, 0xD4D4D4)
   end
 end
 
@@ -710,7 +730,12 @@ def draw_new_line_at(current_code, indent_ct, current_row, code_lines_count, is_
   draw_code_highlighted(code_display, 38, y)
 
   if is_active
-    draw_text('_', 38 + code_display.length * 6, y, 0xD4D4D4)
+    cursor_x = if $cursor_col.nil?
+      38 + code_display.length * 6
+    else
+      38 + (2 * indent_ct + $cursor_col) * 6
+    end
+    draw_text('_', cursor_x, y, 0xD4D4D4)
   end
 end
 
@@ -735,6 +760,7 @@ loop_counter = 0
 
 # Cursor navigation state
 $cursor_line_index = nil  # nil=新規行, 0..n=code_lines[n]を編集中
+$cursor_col = nil         # nil=末尾, 0..n=文字位置
 $saved_new_line = ''      # 新規行の内容を保存
 $saved_new_indent = 0     # 新規行のインデントを保存
 $scroll_start = 0         # 現在のスクロール開始位置
@@ -807,6 +833,7 @@ loop do
           current_row = code_lines.length + 1
           execute_code = loaded + "\n"
           $cursor_line_index = nil
+          $cursor_col = nil
           $saved_new_line = ''
           $saved_new_indent = 0
           $scroll_start = 0
@@ -826,6 +853,7 @@ loop do
       execute_code = ''
       current_row = 1
       $cursor_line_index = nil
+      $cursor_col = nil
       $saved_new_line = ''
       $saved_new_indent = 0
       $scroll_start = 0
@@ -856,7 +884,12 @@ loop do
           $completion_index = 0
           need_full_redraw = true
         elsif code.length > 0
-          code = code[0..-2]
+          if $cursor_col.nil?
+            code = code[0..-2]
+          elsif $cursor_col > 0
+            code = code[0...$cursor_col-1] + code[$cursor_col..]
+            $cursor_col -= 1
+          end
           $completion_index = 0
           need_line_redraw = true
         end
@@ -864,7 +897,12 @@ loop do
         # On existing code_line
         line = code_lines[$cursor_line_index]
         if line[:text].length > 0
-          line[:text] = line[:text][0..-2]
+          if $cursor_col.nil?
+            line[:text] = line[:text][0..-2]
+          elsif $cursor_col > 0
+            line[:text] = line[:text][0...$cursor_col-1] + line[:text][$cursor_col..]
+            $cursor_col -= 1
+          end
           $completion_index = 0
           need_line_redraw = true
         end
@@ -879,6 +917,7 @@ loop do
         else
           code_lines[$cursor_line_index][:text] << $completion_chars
         end
+        $cursor_col = nil  # カーソルを末尾に移動
         $completion_index = 0
         $completion_chars = nil
         need_line_redraw = true
@@ -897,6 +936,11 @@ loop do
           old_scroll = $scroll_start
           old_index = $cursor_line_index
           $cursor_line_index += 1
+          # カーソル位置調整
+          new_text = code_lines[$cursor_line_index][:text]
+          if $cursor_col && $cursor_col >= new_text.length
+            $cursor_col = nil
+          end
           new_scroll = adjust_scroll($cursor_line_index, code_lines.length)
           if old_scroll != new_scroll
             $scroll_start = new_scroll
@@ -913,6 +957,10 @@ loop do
           $cursor_line_index = nil
           code = $saved_new_line
           indent_ct = $saved_new_indent
+          # カーソル位置調整
+          if $cursor_col && $cursor_col >= code.length
+            $cursor_col = nil
+          end
           new_scroll = adjust_scroll(nil, code_lines.length)
           if old_scroll != new_scroll
             $scroll_start = new_scroll
@@ -958,6 +1006,7 @@ loop do
 
         code = ''
         current_row += 1
+        $cursor_col = nil  # 新しい行の末尾に移動
 
         # Adjust scroll to show new line
         old_scroll = $scroll_start
@@ -1046,6 +1095,7 @@ loop do
         indent_ct = 0
         current_row = 1
         $cursor_line_index = nil
+        $cursor_col = nil
         $saved_new_line = ''
         $saved_new_indent = 0
         $scroll_start = 0
@@ -1055,9 +1105,20 @@ loop do
     elsif key_event == 15
       char = '['
       if $cursor_line_index.nil?
-        code << char
+        if $cursor_col.nil?
+          code << char
+        else
+          code = code[0...$cursor_col] + char + code[$cursor_col..]
+          $cursor_col += 1
+        end
       else
-        code_lines[$cursor_line_index][:text] << char
+        text = code_lines[$cursor_line_index][:text]
+        if $cursor_col.nil?
+          code_lines[$cursor_line_index][:text] << char
+        else
+          code_lines[$cursor_line_index][:text] = text[0...$cursor_col] + char + text[$cursor_col..]
+          $cursor_col += 1
+        end
       end
       $completion_index = 0
       need_line_redraw = true
@@ -1065,9 +1126,20 @@ loop do
     elsif key_event == 26
       char = ']'
       if $cursor_line_index.nil?
-        code << char
+        if $cursor_col.nil?
+          code << char
+        else
+          code = code[0...$cursor_col] + char + code[$cursor_col..]
+          $cursor_col += 1
+        end
       else
-        code_lines[$cursor_line_index][:text] << char
+        text = code_lines[$cursor_line_index][:text]
+        if $cursor_col.nil?
+          code_lines[$cursor_line_index][:text] << char
+        else
+          code_lines[$cursor_line_index][:text] = text[0...$cursor_col] + char + text[$cursor_col..]
+          $cursor_col += 1
+        end
       end
       $completion_index = 0
       need_line_redraw = true
@@ -1075,9 +1147,20 @@ loop do
     elsif key_event == 31
       char = '{'
       if $cursor_line_index.nil?
-        code << char
+        if $cursor_col.nil?
+          code << char
+        else
+          code = code[0...$cursor_col] + char + code[$cursor_col..]
+          $cursor_col += 1
+        end
       else
-        code_lines[$cursor_line_index][:text] << char
+        text = code_lines[$cursor_line_index][:text]
+        if $cursor_col.nil?
+          code_lines[$cursor_line_index][:text] << char
+        else
+          code_lines[$cursor_line_index][:text] = text[0...$cursor_col] + char + text[$cursor_col..]
+          $cursor_col += 1
+        end
       end
       $completion_index = 0
       need_line_redraw = true
@@ -1085,9 +1168,20 @@ loop do
     elsif key_event == 1
       char = '}'
       if $cursor_line_index.nil?
-        code << char
+        if $cursor_col.nil?
+          code << char
+        else
+          code = code[0...$cursor_col] + char + code[$cursor_col..]
+          $cursor_col += 1
+        end
       else
-        code_lines[$cursor_line_index][:text] << char
+        text = code_lines[$cursor_line_index][:text]
+        if $cursor_col.nil?
+          code_lines[$cursor_line_index][:text] << char
+        else
+          code_lines[$cursor_line_index][:text] = text[0...$cursor_col] + char + text[$cursor_col..]
+          $cursor_col += 1
+        end
       end
       $completion_index = 0
       need_line_redraw = true
@@ -1095,9 +1189,20 @@ loop do
     elsif key_event == 23
       char = '<'
       if $cursor_line_index.nil?
-        code << char
+        if $cursor_col.nil?
+          code << char
+        else
+          code = code[0...$cursor_col] + char + code[$cursor_col..]
+          $cursor_col += 1
+        end
       else
-        code_lines[$cursor_line_index][:text] << char
+        text = code_lines[$cursor_line_index][:text]
+        if $cursor_col.nil?
+          code_lines[$cursor_line_index][:text] << char
+        else
+          code_lines[$cursor_line_index][:text] = text[0...$cursor_col] + char + text[$cursor_col..]
+          $cursor_col += 1
+        end
       end
       $completion_index = 0
       need_line_redraw = true
@@ -1105,9 +1210,20 @@ loop do
     elsif key_event == 24
       char = '>'
       if $cursor_line_index.nil?
-        code << char
+        if $cursor_col.nil?
+          code << char
+        else
+          code = code[0...$cursor_col] + char + code[$cursor_col..]
+          $cursor_col += 1
+        end
       else
-        code_lines[$cursor_line_index][:text] << char
+        text = code_lines[$cursor_line_index][:text]
+        if $cursor_col.nil?
+          code_lines[$cursor_line_index][:text] << char
+        else
+          code_lines[$cursor_line_index][:text] = text[0...$cursor_col] + char + text[$cursor_col..]
+          $cursor_col += 1
+        end
       end
       $completion_index = 0
       need_line_redraw = true
@@ -1115,9 +1231,20 @@ loop do
     elsif key_event == 3
       char = '='
       if $cursor_line_index.nil?
-        code << char
+        if $cursor_col.nil?
+          code << char
+        else
+          code = code[0...$cursor_col] + char + code[$cursor_col..]
+          $cursor_col += 1
+        end
       else
-        code_lines[$cursor_line_index][:text] << char
+        text = code_lines[$cursor_line_index][:text]
+        if $cursor_col.nil?
+          code_lines[$cursor_line_index][:text] << char
+        else
+          code_lines[$cursor_line_index][:text] = text[0...$cursor_col] + char + text[$cursor_col..]
+          $cursor_col += 1
+        end
       end
       $completion_index = 0
       need_line_redraw = true
@@ -1125,9 +1252,20 @@ loop do
     elsif key_event == 224
       char = '|'
       if $cursor_line_index.nil?
-        code << char
+        if $cursor_col.nil?
+          code << char
+        else
+          code = code[0...$cursor_col] + char + code[$cursor_col..]
+          $cursor_col += 1
+        end
       else
-        code_lines[$cursor_line_index][:text] << char
+        text = code_lines[$cursor_line_index][:text]
+        if $cursor_col.nil?
+          code_lines[$cursor_line_index][:text] << char
+        else
+          code_lines[$cursor_line_index][:text] = text[0...$cursor_col] + char + text[$cursor_col..]
+          $cursor_col += 1
+        end
       end
       $completion_index = 0
       need_line_redraw = true
@@ -1149,9 +1287,20 @@ loop do
     elsif key_event >= 32 && key_event < 127
       char = key_event.chr
       if $cursor_line_index.nil?
-        code << char
+        if $cursor_col.nil?
+          code << char
+        else
+          code = code[0...$cursor_col] + char + code[$cursor_col..]
+          $cursor_col += 1
+        end
       else
-        code_lines[$cursor_line_index][:text] << char
+        text = code_lines[$cursor_line_index][:text]
+        if $cursor_col.nil?
+          code_lines[$cursor_line_index][:text] << char
+        else
+          code_lines[$cursor_line_index][:text] = text[0...$cursor_col] + char + text[$cursor_col..]
+          $cursor_col += 1
+        end
       end
       $completion_index = 0
       need_line_redraw = true
@@ -1266,6 +1415,11 @@ loop do
           $saved_new_line = code
           $saved_new_indent = indent_ct
           $cursor_line_index = code_lines.length - 1
+          # カーソル位置調整
+          new_text = code_lines[$cursor_line_index][:text]
+          if $cursor_col && $cursor_col >= new_text.length
+            $cursor_col = nil
+          end
           new_scroll = adjust_scroll($cursor_line_index, code_lines.length)
 
           if old_scroll != new_scroll
@@ -1282,6 +1436,11 @@ loop do
         old_scroll = $scroll_start
         old_index = $cursor_line_index
         $cursor_line_index -= 1
+        # カーソル位置調整
+        new_text = code_lines[$cursor_line_index][:text]
+        if $cursor_col && $cursor_col >= new_text.length
+          $cursor_col = nil
+        end
         new_scroll = adjust_scroll($cursor_line_index, code_lines.length)
 
         if old_scroll != new_scroll
@@ -1307,6 +1466,11 @@ loop do
         old_scroll = $scroll_start
         old_index = $cursor_line_index
         $cursor_line_index += 1
+        # カーソル位置調整
+        new_text = code_lines[$cursor_line_index][:text]
+        if $cursor_col && $cursor_col >= new_text.length
+          $cursor_col = nil
+        end
         new_scroll = adjust_scroll($cursor_line_index, code_lines.length)
 
         if old_scroll != new_scroll
@@ -1324,6 +1488,10 @@ loop do
         $cursor_line_index = nil
         code = $saved_new_line
         indent_ct = $saved_new_indent
+        # カーソル位置調整
+        if $cursor_col && $cursor_col >= code.length
+          $cursor_col = nil
+        end
         new_scroll = adjust_scroll(nil, code_lines.length)
 
         if old_scroll != new_scroll
@@ -1338,33 +1506,61 @@ loop do
       end
     end
 
-    # Result scroll with left/right
-    if result && r_high && !right_pressed
+    # Left/Right trackball handling
+    has_code = !code_lines.empty? || !code.empty?
+
+    if r_high && !right_pressed
       up_pressed = true
       down_pressed = true
       left_pressed = true
       right_pressed = true
 
-      res_str = result.to_s
-      check_offset = result_offset + 8
-      if res_str.length >= check_offset
-        result_offset += 8
+      if has_code
+        # カーソルを右に移動
+        current_text = $cursor_line_index.nil? ? code : code_lines[$cursor_line_index][:text]
+        if $cursor_col.nil?
+          # 末尾なら何もしない
+        elsif $cursor_col < current_text.length
+          $cursor_col += 1
+          if $cursor_col >= current_text.length
+            $cursor_col = nil
+          end
+          need_line_redraw = true
+        end
+      elsif result
+        # コードが無い時のみresultスクロール
+        res_str = result.to_s
+        check_offset = result_offset + 8
+        if res_str.length >= check_offset
+          result_offset += 8
+          need_result_redraw = true
+        end
+      end
+    elsif l_high && !left_pressed
+      up_pressed = true
+      down_pressed = true
+      left_pressed = true
+      right_pressed = true
+
+      if has_code
+        # カーソルを左に移動
+        current_text = $cursor_line_index.nil? ? code : code_lines[$cursor_line_index][:text]
+        if $cursor_col.nil?
+          $cursor_col = current_text.length - 1 if current_text.length > 0
+        elsif $cursor_col > 0
+          $cursor_col -= 1
+        end
+        need_line_redraw = true
+      elsif result
+        # コードが無い時のみresultスクロール
+        check_offset = result_offset - 8
+        if check_offset >= 0
+          result_offset = check_offset
+        else
+          result_offset = 0
+        end
         need_result_redraw = true
       end
-    elsif result && l_high && !left_pressed
-      up_pressed = true
-      down_pressed = true
-      left_pressed = true
-      right_pressed = true
-
-      check_offset = result_offset - 8
-      if check_offset >= 0
-        result_offset = check_offset
-      else
-        result_offset = 0
-      end
-
-      need_result_redraw = true
     end
 
     next
