@@ -303,10 +303,8 @@ end
 
 # ti-doc: Calculate current line Y position
 def current_line_y(code_lines_count)
-  max_visible = 16
-  start_line = [0, code_lines_count - max_visible + 1].max
-  visible_lines = code_lines_count - start_line
-  CODE_AREA_Y_START + visible_lines * 10
+  visible_offset = code_lines_count - $scroll_start
+  CODE_AREA_Y_START + visible_offset * 10
 end
 
 # ti-doc: Draw current line only
@@ -811,6 +809,7 @@ loop do
           $cursor_line_index = nil
           $saved_new_line = ''
           $saved_new_indent = 0
+          $scroll_start = 0
         end
         $last_status_line = nil
         draw_status(loaded ? "Loaded from #{slot}!" : 'Load failed', current_row)
@@ -850,6 +849,9 @@ loop do
             lines.pop
             execute_code = lines.length > 0 ? lines.join("\n") + "\n" : ''
           end
+
+          # Adjust scroll after deleting line
+          $scroll_start = adjust_scroll(nil, code_lines.length)
 
           $completion_index = 0
           need_full_redraw = true
@@ -957,8 +959,12 @@ loop do
         code = ''
         current_row += 1
 
-        # Judgement redraw pattern for scroll
-        if code_lines.length >= 17
+        # Adjust scroll to show new line
+        old_scroll = $scroll_start
+        $scroll_start = adjust_scroll(nil, code_lines.length)
+
+        # Full redraw if scroll changed, otherwise just redraw 2 lines
+        if old_scroll != $scroll_start
           need_full_redraw = true
         else
           need_newline_redraw = true
@@ -1042,6 +1048,7 @@ loop do
         $cursor_line_index = nil
         $saved_new_line = ''
         $saved_new_indent = 0
+        $scroll_start = 0
         need_full_redraw = true
       end
 
