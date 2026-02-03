@@ -338,31 +338,44 @@ def draw_code_area(code_lines, current_code, indent_ct, current_row)
 
   max_visible = 16
   total = code_lines.length
-  start_line = [0, total - max_visible + 1].max
+  # Use global scroll_start for consistent scrolling
+  start_line = $scroll_start
+  end_line = [total, start_line + max_visible].min
   y = CODE_AREA_Y_START
 
   # Draw history lines
-  (start_line...total).each do |i|
+  (start_line...end_line).each do |i|
     line = code_lines[i]
     ln = i + 1
     line_number = ln > 9 ? 1 : 2
 
+    is_active = ($cursor_line_index == i)
+    ln_color = is_active ? 0xD4D4D4 : 0x6E6E6E
+
     TFT.fill_rect(0, y, 34, 10, 0x070707)
     TFT.draw_fast_v_line(28, y - 2, 10, 0x303030)
-    draw_text("#{' ' * line_number}#{ln}", 0, y, 0x6E6E6E)
-    draw_code_highlighted("#{'  ' * line[:indent]}#{line[:text]}", 38, y)
+    draw_text("#{' ' * line_number}#{ln}", 0, y, ln_color)
+    code_display = "#{'  ' * line[:indent]}#{line[:text]}"
+    draw_code_highlighted(code_display, 38, y)
+    if is_active
+      draw_text('_', 38 + code_display.length * 6, y, 0xD4D4D4)
+    end
     y += 10
   end
 
-  # Draw current line
+  # Draw current/new line
   if y <= CODE_AREA_Y_END - 10
     line_number = current_row > 9 ? 1 : 2
-    
+    is_new_line_active = $cursor_line_index.nil?
+    ln_color = is_new_line_active ? 0xD4D4D4 : 0x6E6E6E
+
     TFT.draw_fast_v_line(28, y - 2, 10, 0x303030)
-    draw_text("#{' ' * line_number}#{current_row}", 0, y, 0xD4D4D4)
+    draw_text("#{' ' * line_number}#{current_row}", 0, y, ln_color)
     code_display = "#{'  ' * indent_ct}#{current_code}"
     draw_code_highlighted(code_display, 38, y)
-    draw_text('_', 38 + code_display.length * 6, y, 0xD4D4D4)
+    if is_new_line_active
+      draw_text('_', 38 + code_display.length * 6, y, 0xD4D4D4)
+    end
   end
 
   code_lines.each do |line|
@@ -633,6 +646,76 @@ def draw_newline_no_scroll(prev_line, current_code, indent_ct, current_row, code
   draw_completion(current_code, code_lines_count)
 end
 
+# ti-doc: Adjust scroll to ensure cursor is visible
+# Returns new scroll_start, adjusted minimally from current $scroll_start
+def adjust_scroll(cursor_line_index, code_lines_count, max_visible = 16)
+  total_lines = code_lines_count + 1  # +1 for new line
+  cursor_pos = cursor_line_index.nil? ? code_lines_count : cursor_line_index
+
+  # Ensure scroll_start is valid
+  max_scroll = [0, total_lines - max_visible].max
+  scroll = [0, [$scroll_start, max_scroll].min].max
+
+  # If cursor is above visible area, scroll up
+  if cursor_pos < scroll
+    scroll = cursor_pos
+  end
+
+  # If cursor is below visible area, scroll down
+  if cursor_pos >= scroll + max_visible
+    scroll = cursor_pos - max_visible + 1
+  end
+
+  scroll
+end
+
+# ti-doc: Draw a single line at given index (for cursor navigation)
+def draw_line_at(line_index, is_active, code_lines, scroll_start)
+  return if line_index < scroll_start
+  visible_offset = line_index - scroll_start
+  return if visible_offset >= 16
+
+  y = CODE_AREA_Y_START + visible_offset * 10
+  return if y > CODE_AREA_Y_END - 10
+
+  line = code_lines[line_index]
+  ln = line_index + 1
+
+  TFT.fill_rect(0, y, 320, 10, 0x070707)
+  TFT.draw_fast_v_line(28, y - 2, 10, 0x303030)
+
+  line_number_padding = ln > 9 ? 1 : 2
+  ln_color = is_active ? 0xD4D4D4 : 0x6E6E6E
+  draw_text("#{' ' * line_number_padding}#{ln}", 0, y, ln_color)
+
+  code_display = "#{'  ' * line[:indent]}#{line[:text]}"
+  draw_code_highlighted(code_display, 38, y)
+
+  if is_active
+    draw_text('_', 38 + code_display.length * 6, y, 0xD4D4D4)
+  end
+end
+
+# ti-doc: Draw the new/incomplete line (for cursor navigation)
+def draw_new_line_at(current_code, indent_ct, current_row, code_lines_count, is_active)
+  y = current_line_y(code_lines_count)
+  return if y > CODE_AREA_Y_END - 10
+
+  TFT.fill_rect(0, y, 320, 10, 0x070707)
+  TFT.draw_fast_v_line(28, y - 2, 10, 0x303030)
+
+  line_number_padding = current_row > 9 ? 1 : 2
+  ln_color = is_active ? 0xD4D4D4 : 0x6E6E6E
+  draw_text("#{' ' * line_number_padding}#{current_row}", 0, y, ln_color)
+
+  code_display = "#{'  ' * indent_ct}#{current_code}"
+  draw_code_highlighted(code_display, 38, y)
+
+  if is_active
+    draw_text('_', 38 + code_display.length * 6, y, 0xD4D4D4)
+  end
+end
+
 # State for main loop
 code = ''
 code_lines = []
@@ -651,6 +734,12 @@ left_pressed = left.high?
 up_pressed = up.high?
 down_pressed = down.high?
 loop_counter = 0
+
+# Cursor navigation state
+$cursor_line_index = nil  # nil=新規行, 0..n=code_lines[n]を編集中
+$saved_new_line = ''      # 新規行の内容を保存
+$saved_new_indent = 0     # 新規行のインデントを保存
+$scroll_start = 0         # 現在のスクロール開始位置
 
 sandbox = Sandbox.new('')
 
@@ -719,6 +808,9 @@ loop do
           indent_ct = 0
           current_row = code_lines.length + 1
           execute_code = loaded + "\n"
+          $cursor_line_index = nil
+          $saved_new_line = ''
+          $saved_new_indent = 0
         end
         $last_status_line = nil
         draw_status(loaded ? "Loaded from #{slot}!" : 'Load failed', current_row)
@@ -734,38 +826,57 @@ loop do
       indent_ct = 0
       execute_code = ''
       current_row = 1
+      $cursor_line_index = nil
+      $saved_new_line = ''
+      $saved_new_indent = 0
+      $scroll_start = 0
       need_full_redraw = true
       next
 
     # backspace
     elsif key_event == 8
-      if code == '' && code_lines.length > 0
-        # Move cursor to prev line
-        prev_line = code_lines.pop
-        code = prev_line[:text]
-        indent_ct = prev_line[:indent]
-        current_row -= 1
+      if $cursor_line_index.nil?
+        # On new line
+        if code == '' && code_lines.length > 0
+          # Move cursor to prev line
+          prev_line = code_lines.pop
+          code = prev_line[:text]
+          indent_ct = prev_line[:indent]
+          current_row -= 1
 
-        # Delete last line
-        if execute_code.length > 0
-          lines = execute_code.split("\n")
-          lines.pop
-          execute_code = lines.length > 0 ? lines.join("\n") + "\n" : ''
+          # Delete last line
+          if execute_code.length > 0
+            lines = execute_code.split("\n")
+            lines.pop
+            execute_code = lines.length > 0 ? lines.join("\n") + "\n" : ''
+          end
+
+          $completion_index = 0
+          need_full_redraw = true
+        elsif code.length > 0
+          code = code[0..-2]
+          $completion_index = 0
+          need_line_redraw = true
         end
-
-        $completion_index = 0
-        need_full_redraw = true
       else
-        code = code[0..-2]
-        $completion_index = 0
-        need_line_redraw = true
+        # On existing code_line
+        line = code_lines[$cursor_line_index]
+        if line[:text].length > 0
+          line[:text] = line[:text][0..-2]
+          $completion_index = 0
+          need_line_redraw = true
+        end
       end
 
     # return
     elsif key_event == 13
       # Select completion candidate
       if $completion_chars.is_a?(String)
-        code << $completion_chars
+        if $cursor_line_index.nil?
+          code << $completion_chars
+        else
+          code_lines[$cursor_line_index][:text] << $completion_chars
+        end
         $completion_index = 0
         $completion_chars = nil
         need_line_redraw = true
@@ -775,6 +886,42 @@ loop do
         $completion_index = 0
         $completion_candidates = []
         clear_completion_box
+        next
+      end
+
+      # On existing line, move to next line
+      if $cursor_line_index != nil
+        if $cursor_line_index < code_lines.length - 1
+          old_scroll = $scroll_start
+          old_index = $cursor_line_index
+          $cursor_line_index += 1
+          new_scroll = adjust_scroll($cursor_line_index, code_lines.length)
+          if old_scroll != new_scroll
+            $scroll_start = new_scroll
+            need_full_redraw = true
+          else
+            draw_line_at(old_index, false, code_lines, $scroll_start)
+            draw_line_at($cursor_line_index, true, code_lines, $scroll_start)
+          end
+          draw_status('--NORMAL--', $cursor_line_index + 1)
+        else
+          # At last code_line, move to new line
+          old_scroll = $scroll_start
+          old_index = $cursor_line_index
+          $cursor_line_index = nil
+          code = $saved_new_line
+          indent_ct = $saved_new_indent
+          new_scroll = adjust_scroll(nil, code_lines.length)
+          if old_scroll != new_scroll
+            $scroll_start = new_scroll
+            need_full_redraw = true
+          else
+            draw_line_at(old_index, false, code_lines, $scroll_start)
+            draw_new_line_at(code, indent_ct, current_row, code_lines.length, true)
+          end
+          draw_completion(code, code_lines.length)
+          draw_status('--NORMAL--', current_row)
+        end
         next
       end
 
@@ -818,7 +965,13 @@ loop do
         end
 
       # Execute code
-      elsif indent_ct == 0 && execute_code != ''
+      elsif indent_ct == 0 && code_lines.length > 0
+        # Rebuild execute_code from code_lines (in case lines were edited)
+        execute_code = ''
+        code_lines.each do |line|
+          execute_code << "#{'  ' * line[:indent]}#{line[:text]}\n"
+        end
+
         if sandbox.compile("_ = (#{execute_code})", remove_lv: true)
           sandbox.execute
           sandbox.wait(timeout: nil)
@@ -886,54 +1039,89 @@ loop do
         execute_code = ''
         indent_ct = 0
         current_row = 1
+        $cursor_line_index = nil
+        $saved_new_line = ''
+        $saved_new_indent = 0
         need_full_redraw = true
       end
 
     elsif key_event == 15
       char = '['
-      code << char
+      if $cursor_line_index.nil?
+        code << char
+      else
+        code_lines[$cursor_line_index][:text] << char
+      end
       $completion_index = 0
       need_line_redraw = true
 
     elsif key_event == 26
       char = ']'
-      code << char
+      if $cursor_line_index.nil?
+        code << char
+      else
+        code_lines[$cursor_line_index][:text] << char
+      end
       $completion_index = 0
       need_line_redraw = true
 
     elsif key_event == 31
       char = '{'
-      code << char
+      if $cursor_line_index.nil?
+        code << char
+      else
+        code_lines[$cursor_line_index][:text] << char
+      end
       $completion_index = 0
       need_line_redraw = true
 
     elsif key_event == 1
       char = '}'
-      code << char
+      if $cursor_line_index.nil?
+        code << char
+      else
+        code_lines[$cursor_line_index][:text] << char
+      end
       $completion_index = 0
       need_line_redraw = true
 
     elsif key_event == 23
       char = '<'
-      code << char
+      if $cursor_line_index.nil?
+        code << char
+      else
+        code_lines[$cursor_line_index][:text] << char
+      end
       $completion_index = 0
       need_line_redraw = true
 
     elsif key_event == 24
       char = '>'
-      code << char
+      if $cursor_line_index.nil?
+        code << char
+      else
+        code_lines[$cursor_line_index][:text] << char
+      end
       $completion_index = 0
       need_line_redraw = true
 
     elsif key_event == 3
       char = '='
-      code << char
+      if $cursor_line_index.nil?
+        code << char
+      else
+        code_lines[$cursor_line_index][:text] << char
+      end
       $completion_index = 0
       need_line_redraw = true
 
     elsif key_event == 224
       char = '|'
-      code << char
+      if $cursor_line_index.nil?
+        code << char
+      else
+        code_lines[$cursor_line_index][:text] << char
+      end
       $completion_index = 0
       need_line_redraw = true
 
@@ -953,7 +1141,11 @@ loop do
 
     elsif key_event >= 32 && key_event < 127
       char = key_event.chr
-      code << char
+      if $cursor_line_index.nil?
+        code << char
+      else
+        code_lines[$cursor_line_index][:text] << char
+      end
       $completion_index = 0
       need_line_redraw = true
     end
@@ -961,10 +1153,6 @@ loop do
 
   # Track ball (check every 5 loops)
   if loop_counter >= 5
-    if $completion_candidates.length == 0 && $slot_modal_mode.nil?
-      down_pressed = true
-    end
-
     loop_counter = 0
 
     r_high = right.high?
@@ -1056,6 +1244,93 @@ loop do
       next
     end
 
+    # Vertical cursor navigation (when not in modal or completion)
+    if u_high && !up_pressed
+      up_pressed = true
+      down_pressed = true
+      left_pressed = true
+      right_pressed = true
+
+      # Move cursor up
+      if $cursor_line_index.nil?
+        # Currently on new line, move to last code_line
+        if code_lines.length > 0
+          old_scroll = $scroll_start
+          $saved_new_line = code
+          $saved_new_indent = indent_ct
+          $cursor_line_index = code_lines.length - 1
+          new_scroll = adjust_scroll($cursor_line_index, code_lines.length)
+
+          if old_scroll != new_scroll
+            $scroll_start = new_scroll
+            need_full_redraw = true
+          else
+            draw_line_at($cursor_line_index, true, code_lines, $scroll_start)
+            draw_new_line_at($saved_new_line, $saved_new_indent, current_row, code_lines.length, false)
+          end
+          clear_completion_box
+          draw_status('--NORMAL--', $cursor_line_index + 1)
+        end
+      elsif $cursor_line_index > 0
+        old_scroll = $scroll_start
+        old_index = $cursor_line_index
+        $cursor_line_index -= 1
+        new_scroll = adjust_scroll($cursor_line_index, code_lines.length)
+
+        if old_scroll != new_scroll
+          $scroll_start = new_scroll
+          need_full_redraw = true
+        else
+          draw_line_at(old_index, false, code_lines, $scroll_start)
+          draw_line_at($cursor_line_index, true, code_lines, $scroll_start)
+        end
+        draw_status('--NORMAL--', $cursor_line_index + 1)
+      end
+
+    elsif d_high && !down_pressed
+      up_pressed = true
+      down_pressed = true
+      left_pressed = true
+      right_pressed = true
+
+      # Move cursor down
+      if $cursor_line_index.nil?
+        # Already on new line, can't go down
+      elsif $cursor_line_index < code_lines.length - 1
+        old_scroll = $scroll_start
+        old_index = $cursor_line_index
+        $cursor_line_index += 1
+        new_scroll = adjust_scroll($cursor_line_index, code_lines.length)
+
+        if old_scroll != new_scroll
+          $scroll_start = new_scroll
+          need_full_redraw = true
+        else
+          draw_line_at(old_index, false, code_lines, $scroll_start)
+          draw_line_at($cursor_line_index, true, code_lines, $scroll_start)
+        end
+        draw_status('--NORMAL--', $cursor_line_index + 1)
+      else
+        # At last code_line, move to new line
+        old_scroll = $scroll_start
+        old_index = $cursor_line_index
+        $cursor_line_index = nil
+        code = $saved_new_line
+        indent_ct = $saved_new_indent
+        new_scroll = adjust_scroll(nil, code_lines.length)
+
+        if old_scroll != new_scroll
+          $scroll_start = new_scroll
+          need_full_redraw = true
+        else
+          draw_line_at(old_index, false, code_lines, $scroll_start)
+          draw_new_line_at(code, indent_ct, current_row, code_lines.length, true)
+        end
+        draw_completion(code, code_lines.length)
+        draw_status('--NORMAL--', current_row)
+      end
+    end
+
     # Result scroll with left/right
     if result && r_high && !right_pressed
       up_pressed = true
@@ -1098,7 +1373,11 @@ loop do
     draw_newline_no_scroll(prev_line_for_newline, code, indent_ct, current_row, code_lines.length)
     need_newline_redraw = false
   elsif need_line_redraw
-    draw_current_line(code, indent_ct, current_row, code_lines.length)
+    if $cursor_line_index.nil?
+      draw_current_line(code, indent_ct, current_row, code_lines.length)
+    else
+      draw_line_at($cursor_line_index, true, code_lines, $scroll_start)
+    end
     need_line_redraw = false
   end
 
