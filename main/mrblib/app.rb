@@ -107,356 +107,6 @@ INDENT_INCREASE = [
 
 INDENT_DECREASE = ['end', 'else', 'elsif', 'when']
 
-#############################################################################
-#                               Common Draw                                 #
-#############################################################################
-# ti-doc: Check if string is a number
-def is_number?(str)
-  return false if str == '' || str.nil?
-  str.each_char do |c|
-    return false if c < '0' || c > '9'
-  end
-  true
-end
-
-# ti-doc: Tokenize code
-def tokenize(code)
-  tokens = []
-  current_token = ''
-  in_string = false
-  string_end_char = ''
-  token_ends = ['(', ')', '{', '}', '[', ']', ',', ';', '.', '+', '-', '*', '/', '=', '<', '>', '!', '&', '|']
-
-  code.each_char do |c|
-    if in_string
-      current_token << c
-      if c == string_end_char
-        tokens << current_token
-        current_token = ''
-        in_string = false
-        string_end_char = ''
-      end
-    elsif c == "'" || c == '"'
-      tokens << current_token if current_token != ''
-      current_token = c
-      in_string = true
-
-      if c == "'"
-        string_end_char = "'"
-      else
-        string_end_char = '"'
-      end
-    elsif c == ' '
-      tokens << current_token if current_token != ''
-      tokens << ' '
-      current_token = ''
-    elsif token_ends.include?(c)
-      tokens << current_token if current_token != ''
-      tokens << c
-      current_token = ''
-    else
-      current_token << c
-    end
-  end
-  tokens << current_token if current_token != ''
-  tokens
-end
-
-# ti-doc: Draw text with color
-def draw_text(text, x, y, color)
-  TFT.set_text_color(color)
-  TFT.set_cursor(x, y)
-  TFT.print(text)
-end
-
-# ti-doc: Draw code with syntax highlighting
-def draw_code_highlighted(code_str, x, y)
-  tokens = tokenize(code_str)
-  is_def = false
-
-  tokens.each do |token|
-    color = 0xD4D4D4  # default white
-
-    if token.length > 0 && (token[0] == "'" || token[0] == '"')
-      color = 0xCE9178  # string brown
-    elsif token.length > 0 && token[0] == ':'
-      color = 0x569CD6  # symbol blue
-    elsif token.length > 1 && token[-1] == ':'
-      color = 0x569CD6  # symbol blue
-    elsif token.length > 1 && token[0] == '@' && token[1] == '@'
-      color = 0x9CDCFE  # variable light blue
-    elsif token.length > 0 && token[0] == '@'
-      color = 0x9CDCFE  # variable light blue
-    elsif token.length > 0 && token[0] == '$'
-      color = 0x9CDCFE  # global light blue
-    elsif is_number?(token)
-      color = 0xB5CEA8  # number green
-    elsif ['nil', 'true', 'false', 'self'].include?(token)
-      # pseudo variables color (blue)
-      color = 0x569CD6
-    elsif token == 'def'
-      is_def = true
-      color = 0xC586C0
-    elsif HIGHLIGHT_KEYWORDS.include?(token)
-      color = 0xC586C0  # keyword pink
-    elsif token.length > 0 && token[0] >= 'A' && token[0] <= 'Z'
-      color = 0x4EC9B0  # constant teal
-    elsif token == ' ' || token == '.'
-      # normal text color (white) 
-      color = 0xD4D4D4
-    elsif is_def
-      color = 0xEEEECC  # method yellow
-      is_def = false
-    end
-
-    draw_text(token, x, y, color)
-    x += token.length * 6
-  end
-end
-
-# ti-doc: Draw Ruby icon
-def draw_ruby_icon(x, y, c = 0xCC342D)
-  # Row 1
-  TFT.draw_pixel(x + 2, y + 3, c)
-  TFT.draw_pixel(x + 3, y + 3, c)
-  TFT.draw_pixel(x + 4, y + 3, c)
-  TFT.draw_pixel(x + 5, y + 3, c)
-  TFT.draw_pixel(x + 6, y + 3, c)
-
-  # Row 2
-  TFT.draw_pixel(x + 1, y + 4, c)
-  TFT.draw_pixel(x + 2, y + 4, c)
-  TFT.draw_pixel(x + 3, y + 4, c)
-  TFT.draw_pixel(x + 4, y + 4, c)
-  TFT.draw_pixel(x + 5, y + 4, c)
-  TFT.draw_pixel(x + 6, y + 4, c)
-  TFT.draw_pixel(x + 7, y + 4, c)
-
-  # Row 3
-  TFT.draw_pixel(x + 2, y + 5, c)
-  TFT.draw_pixel(x + 3, y + 5, c)
-  TFT.draw_pixel(x + 4, y + 5, c)
-  TFT.draw_pixel(x + 5, y + 5, c)
-  TFT.draw_pixel(x + 6, y + 5, c)
-
-  # Row 4
-  TFT.draw_pixel(x + 3, y + 6, c)
-  TFT.draw_pixel(x + 4, y + 6, c)
-  TFT.draw_pixel(x + 5, y + 6, c)
-
-  # Row 5
-  TFT.draw_pixel(x + 4, y + 7, c)
-end
-
-# ti-doc: Draw Static UI frame
-def draw_ui file_name
-  # Tab bar background (full width)
-  TFT.fill_rect(0, 0, 320, 22, 0x2D2D2D)
-
-  icon_width = 12
-
-  # Start Active tab (calc.rb)
-  tab_text = file_name
-  tab_width = (tab_text.length * 6) + 42
-
-  # Active tab background (same as editor bg)
-  TFT.fill_rect(0, 0, tab_width, 22, 0x070707)
-
-  # Top accent line (blue highlight for active tab)
-  TFT.fill_rect(0, 0, tab_width, 2, 0x007ACC)
-
-  # Ruby icon
-  draw_ruby_icon(4, 7)
-
-  # Filename
-  draw_text(tab_text, 18, 8, 0xD4D4D4)
-
-  # Close button (x)
-  close_x = (tab_text.length * 6) + 30
-  draw_text('x', close_x, 8, 0x6E6E6E)
-  # End Active tab (calc.rb)
-
-  # Start Inactive tab (dummy.rb)
-  dummy_text = 'dummy.rb'
-  dummy_start = tab_width + 1
-  dummy_width = (dummy_text.length * 6) + 42
-
-  # Inactive tab background (same as tab bar, no accent line)
-  TFT.fill_rect(dummy_start, 1, dummy_width, 21, 0x0F0F0F)
-
-  # Ruby icon
-  draw_ruby_icon(dummy_start + 4, 7, 0x992828)
-
-  # Filename (dimmed)
-  draw_text(dummy_text, dummy_start + 18, 8, 0x6E6E6E)
-
-  # Close button (x)
-  dummy_close_x = dummy_start + (dummy_text.length * 6) + 30
-  draw_text('x', dummy_close_x, 8, 0x6E6E6E)
-  # End Inactive tab (dummy.rb)
-
-
-  # Result area
-  TFT.draw_fast_h_line(0, 202, 320, 0x303030)
-  draw_text('>>', 2, 210, 0x6E6E6E)
-
-  # Status bar separator
-  TFT.draw_fast_h_line(0, 226, 320, 0x303030)
-end
-
-# ti-doc: Calculate current line Y position
-def current_line_y(code_lines_count)
-  visible_offset = code_lines_count - $scroll_start
-  CODE_AREA_Y_START + visible_offset * 10
-end
-
-# ti-doc: Draw current line only
-def draw_current_line(current_code, indent_ct, current_row, code_lines_count)
-  y = current_line_y(code_lines_count)
-  return if y > CODE_AREA_Y_END - 10
-
-  TFT.fill_rect(0, y, 320, 10, 0x070707)
-  TFT.draw_fast_v_line(28, y - 2, 10, 0x303030)
-
-  line_number = current_row > 9 ? 1 : 2
-  draw_text("#{' ' * line_number}#{current_row}", 0, y, 0x858585)
-
-  code_display = "#{'  ' * indent_ct}#{current_code}"
-  draw_code_highlighted(code_display, 38, y)
-  cursor_x = if $cursor_col.nil?
-    38 + code_display.length * 6
-  else
-    38 + (2 * indent_ct + $cursor_col) * 6
-  end
-  draw_text('_', cursor_x, y, 0xFFAA00)
-
-  draw_completion(current_code, code_lines_count)
-end
-
-# ti-doc: Draw code area (full redraw)
-def draw_code_area(code_lines, current_code, indent_ct, current_row)
-  # Reset completion for class context
-  $dict.delete('attr_reader')
-  $dict.delete('attr_accessor')
-  $dict.delete('initialize')
-
-  TFT.fill_rect(0, CODE_AREA_Y_START, 320, CODE_AREA_Y_END - CODE_AREA_Y_START, 0x070707)
-
-  max_visible = 16
-  total = code_lines.length
-  # Use global scroll_start for consistent scrolling
-  start_line = $scroll_start
-  end_line = [total, start_line + max_visible].min
-  y = CODE_AREA_Y_START
-
-  # Draw history lines
-  (start_line...end_line).each do |i|
-    line = code_lines[i]
-    ln = i + 1
-    line_number = ln > 9 ? 1 : 2
-
-    is_active = ($cursor_line_index == i)
-    ln_color = is_active ? 0xD4D4D4 : 0x6E6E6E
-
-    TFT.fill_rect(0, y, 34, 10, 0x070707)
-    TFT.draw_fast_v_line(28, y - 2, 10, 0x303030)
-    draw_text("#{' ' * line_number}#{ln}", 0, y, ln_color)
-    code_display = "#{'  ' * line[:indent]}#{line[:text]}"
-    draw_code_highlighted(code_display, 38, y)
-    if is_active
-      cursor_x = if $cursor_col.nil?
-        38 + code_display.length * 6
-      else
-        38 + (2 * line[:indent] + $cursor_col) * 6
-      end
-      draw_text('_', cursor_x, y, 0xFFAA00)
-    end
-    y += 10
-  end
-
-  # Draw current/new line
-  if y <= CODE_AREA_Y_END - 10
-    line_number = current_row > 9 ? 1 : 2
-    is_new_line_active = $cursor_line_index.nil?
-    ln_color = is_new_line_active ? 0xD4D4D4 : 0x6E6E6E
-
-    TFT.draw_fast_v_line(28, y - 2, 10, 0x303030)
-    draw_text("#{' ' * line_number}#{current_row}", 0, y, ln_color)
-    code_display = "#{'  ' * indent_ct}#{current_code}"
-    draw_code_highlighted(code_display, 38, y)
-    if is_new_line_active
-      cursor_x = if $cursor_col.nil?
-        38 + code_display.length * 6
-      else
-        38 + (2 * indent_ct + $cursor_col) * 6
-      end
-      draw_text('_', cursor_x, y, 0xFFAA00)
-    end
-  end
-
-  code_lines.each do |line|
-    tokens = tokenize(line[:text])
-    tokens.each_with_index do |token, idx|
-      if token == 'class' && idx == 0
-        $dict['attr_reader'] = true
-        $dict['attr_accessor'] = true
-        $dict['initialize'] = true
-        break
-      end
-    end
-  end
-
-  draw_completion(current_code, current_row)
-end
-
-# ti-doc: Draw result with horizontal scroll offset
-def draw_result(res, offset = 0)
-  TFT.fill_rect(22, 208, 298, 12, 0x070707)
-  color = 0xD4D4D4
-  if res.class == Integer || res.class == Float
-    color = 0xB5CEA8
-  elsif res.class == String
-    color = 0xCE9178
-  elsif res.class == NilClass
-    color = 0x569CD6
-    res = 'nil'
-  elsif res.class == TrueClass || res.class == FalseClass
-    color = 0x569CD6
-  end
-  display_str = res.to_s
-  if offset > 0 && display_str.length > offset
-    display_str = display_str[offset..]
-  end
-  draw_text(display_str, 22, 210, color)
-end
-
-# ti-doc: Draw status
-def draw_status(msg, line_num = nil)
-  battery_voltage = $bat_adc.read_voltage
-
-  # Skip if nothing changed
-  if line_num == $last_status_line
-    return
-  end
-
-  $last_status_line = line_num
-
-  TFT.fill_rect(0, 227, 320, 13, 0x007ACC)
-  draw_text(msg, 4, 230, 0xFFFFFF)
-
-  right_items = []
-
-  if line_num
-    right_items << "Ln #{line_num}"
-  end
-
-  right_items << "Ruby"
-  right_items << "#{battery_voltage}V"
-
-  right_text = right_items.join('  ')
-  right_x = 320 - (right_text.length * 6) - 4
-  draw_text(right_text, right_x, 230, 0xFFFFFF)
-end
 
 #############################################################################
 #                               Save & Load                                 #
@@ -676,7 +326,13 @@ end
 # Returns new scroll_start, adjusted minimally from current $scroll_start
 def adjust_scroll(cursor_line_index, code_lines_count, max_visible = 16)
   total_lines = code_lines_count + 1  # +1 for new line
-  cursor_pos = cursor_line_index.nil? ? code_lines_count : cursor_line_index
+
+  cursor_pos = 
+    if cursor_line_index.is_a?(NilClass) 
+      code_lines_count 
+    else 
+      cursor_line_index
+    end
 
   # Ensure scroll_start is valid
   max_scroll = [0, total_lines - max_visible].max
@@ -697,6 +353,8 @@ end
 
 # ti-doc: Draw a single line at given index (for cursor navigation)
 def draw_line_at(line_index, is_active, code_lines, scroll_start)
+  line_index = line_index.to_i
+
   return if line_index < scroll_start
   visible_offset = line_index - scroll_start
   return if visible_offset >= 16
@@ -718,11 +376,12 @@ def draw_line_at(line_index, is_active, code_lines, scroll_start)
   draw_code_highlighted(code_display, 38, y)
 
   if is_active
-    cursor_x = if $cursor_col.nil?
-      38 + code_display.length * 6
-    else
-      38 + (2 * line[:indent] + $cursor_col) * 6
-    end
+    cursor_x = 
+      if $cursor_col.is_a?(NilClass)
+        38 + code_display.length * 6
+      else
+        38 + (2 * line[:indent] + $cursor_col) * 6
+      end
     draw_text('_', cursor_x, y, 0xFFAA00)
   end
 end
@@ -743,13 +402,375 @@ def draw_new_line_at(current_code, indent_ct, current_row, code_lines_count, is_
   draw_code_highlighted(code_display, 38, y)
 
   if is_active
-    cursor_x = if $cursor_col.nil?
+    cursor_x = 
+      if $cursor_col.is_a?(NilClass)
+        38 + code_display.length * 6
+      else
+        38 + (2 * indent_ct + $cursor_col) * 6
+      end
+
+    draw_text('_', cursor_x, y, 0xFFAA00)
+  end
+end
+
+#############################################################################
+#                               Common Draw                                 #
+#############################################################################
+# ti-doc: Check if string is a number
+def is_number?(str)
+  return false if str == '' || str.nil?
+  str.each_char do |c|
+    return false if c < '0' || c > '9'
+  end
+  true
+end
+ 
+# ti-doc: Tokenize code
+def tokenize(code)
+  tokens = []
+  current_token = ''
+  in_string = false
+  string_end_char = ''
+  token_ends = ['(', ')', '{', '}', '[', ']', ',', ';', '.', '+', '-', '*', '/', '=', '<', '>', '!', '&', '|']
+
+  code.each_char do |c|
+    if in_string
+      current_token << c
+      if c == string_end_char
+        tokens << current_token
+        current_token = ''
+        in_string = false
+        string_end_char = ''
+      end
+    elsif c == "'" || c == '"'
+      tokens << current_token if current_token != ''
+      current_token = c
+      in_string = true
+
+      if c == "'"
+        string_end_char = "'"
+      else
+        string_end_char = '"'
+      end
+    elsif c == ' '
+      tokens << current_token if current_token != ''
+      tokens << ' '
+      current_token = ''
+    elsif token_ends.include?(c)
+      tokens << current_token if current_token != ''
+      tokens << c
+      current_token = ''
+    else
+      current_token << c
+    end
+  end
+  tokens << current_token if current_token != ''
+  tokens
+end
+
+# ti-doc: Draw text with color
+def draw_text(text, x, y, color)
+  TFT.set_text_color(color)
+  TFT.set_cursor(x, y)
+  TFT.print(text)
+end
+
+# ti-doc: Draw code with syntax highlighting
+def draw_code_highlighted(code_str, x, y)
+  tokens = tokenize(code_str)
+  is_def = false
+
+  tokens.each do |token|
+    color = 0xD4D4D4  # default white
+
+    if token.length > 0 && (token[0] == "'" || token[0] == '"')
+      color = 0xCE9178  # string brown
+    elsif token.length > 0 && token[0] == ':'
+      color = 0x569CD6  # symbol blue
+    elsif token.length > 1 && token[-1] == ':'
+      color = 0x569CD6  # symbol blue
+    elsif token.length > 1 && token[0] == '@' && token[1] == '@'
+      color = 0x9CDCFE  # variable light blue
+    elsif token.length > 0 && token[0] == '@'
+      color = 0x9CDCFE  # variable light blue
+    elsif token.length > 0 && token[0] == '$'
+      color = 0x9CDCFE  # global light blue
+    elsif is_number?(token)
+      color = 0xB5CEA8  # number green
+    elsif ['nil', 'true', 'false', 'self'].include?(token)
+      # pseudo variables color (blue)
+      color = 0x569CD6
+    elsif token == 'def'
+      is_def = true
+      color = 0xC586C0
+    elsif HIGHLIGHT_KEYWORDS.include?(token)
+      color = 0xC586C0  # keyword pink
+    elsif token.length > 0 && token[0] >= 'A' && token[0] <= 'Z'
+      color = 0x4EC9B0  # constant teal
+    elsif token == ' ' || token == '.'
+      # normal text color (white) 
+      color = 0xD4D4D4
+    elsif is_def
+      color = 0xEEEECC  # method yellow
+      is_def = false
+    end
+
+    draw_text(token, x, y, color)
+    x += token.length * 6
+  end
+end
+
+# ti-doc: Draw Ruby icon
+def draw_ruby_icon(x, y, c = 0xCC342D)
+  # Row 1
+  TFT.draw_pixel(x + 2, y + 3, c)
+  TFT.draw_pixel(x + 3, y + 3, c)
+  TFT.draw_pixel(x + 4, y + 3, c)
+  TFT.draw_pixel(x + 5, y + 3, c)
+  TFT.draw_pixel(x + 6, y + 3, c)
+
+  # Row 2
+  TFT.draw_pixel(x + 1, y + 4, c)
+  TFT.draw_pixel(x + 2, y + 4, c)
+  TFT.draw_pixel(x + 3, y + 4, c)
+  TFT.draw_pixel(x + 4, y + 4, c)
+  TFT.draw_pixel(x + 5, y + 4, c)
+  TFT.draw_pixel(x + 6, y + 4, c)
+  TFT.draw_pixel(x + 7, y + 4, c)
+
+  # Row 3
+  TFT.draw_pixel(x + 2, y + 5, c)
+  TFT.draw_pixel(x + 3, y + 5, c)
+  TFT.draw_pixel(x + 4, y + 5, c)
+  TFT.draw_pixel(x + 5, y + 5, c)
+  TFT.draw_pixel(x + 6, y + 5, c)
+
+  # Row 4
+  TFT.draw_pixel(x + 3, y + 6, c)
+  TFT.draw_pixel(x + 4, y + 6, c)
+  TFT.draw_pixel(x + 5, y + 6, c)
+
+  # Row 5
+  TFT.draw_pixel(x + 4, y + 7, c)
+end
+
+# ti-doc: Draw Static UI frame
+def draw_ui file_name
+  # Tab bar background (full width)
+  TFT.fill_rect(0, 0, 320, 22, 0x2D2D2D)
+
+  icon_width = 12
+
+  # Start Active tab (calc.rb)
+  tab_text = file_name
+  tab_width = (tab_text.length * 6) + 42
+
+  # Active tab background (same as editor bg)
+  TFT.fill_rect(0, 0, tab_width, 22, 0x070707)
+
+  # Top accent line (blue highlight for active tab)
+  TFT.fill_rect(0, 0, tab_width, 2, 0x007ACC)
+
+  # Ruby icon
+  draw_ruby_icon(4, 7)
+
+  # Filename
+  draw_text(tab_text, 18, 8, 0xD4D4D4)
+
+  # Close button (x)
+  close_x = (tab_text.length * 6) + 30
+  draw_text('x', close_x, 8, 0x6E6E6E)
+  # End Active tab (calc.rb)
+
+  # Start Inactive tab (dummy.rb)
+  dummy_text = 'dummy.rb'
+  dummy_start = tab_width + 1
+  dummy_width = (dummy_text.length * 6) + 42
+
+  # Inactive tab background (same as tab bar, no accent line)
+  TFT.fill_rect(dummy_start, 1, dummy_width, 21, 0x0F0F0F)
+
+  # Ruby icon
+  draw_ruby_icon(dummy_start + 4, 7, 0x992828)
+
+  # Filename (dimmed)
+  draw_text(dummy_text, dummy_start + 18, 8, 0x6E6E6E)
+
+  # Close button (x)
+  dummy_close_x = dummy_start + (dummy_text.length * 6) + 30
+  draw_text('x', dummy_close_x, 8, 0x6E6E6E)
+  # End Inactive tab (dummy.rb)
+
+
+  # Result area
+  TFT.draw_fast_h_line(0, 202, 320, 0x303030)
+  draw_text('>>', 2, 210, 0x6E6E6E)
+
+  # Status bar separator
+  TFT.draw_fast_h_line(0, 226, 320, 0x303030)
+end
+
+# ti-doc: Calculate current line Y position
+def current_line_y(code_lines_count)
+  visible_offset = code_lines_count - $scroll_start
+  CODE_AREA_Y_START + visible_offset * 10
+end
+
+# ti-doc: Draw current line only
+def draw_current_line(current_code, indent_ct, current_row, code_lines_count)
+  y = current_line_y(code_lines_count)
+  return if y > CODE_AREA_Y_END - 10
+
+  TFT.fill_rect(0, y, 320, 10, 0x070707)
+  TFT.draw_fast_v_line(28, y - 2, 10, 0x303030)
+
+  line_number = current_row > 9 ? 1 : 2
+  draw_text("#{' ' * line_number}#{current_row}", 0, y, 0x858585)
+
+  code_display = "#{'  ' * indent_ct}#{current_code}"
+  draw_code_highlighted(code_display, 38, y)
+
+  cursor_x = 
+    if $cursor_col.is_a?(NilClass)
       38 + code_display.length * 6
     else
       38 + (2 * indent_ct + $cursor_col) * 6
     end
-    draw_text('_', cursor_x, y, 0xFFAA00)
+
+  draw_text('_', cursor_x, y, 0xFFAA00)
+
+  draw_completion(current_code, code_lines_count)
+end
+
+# ti-doc: Draw code area (full redraw)
+def draw_code_area(code_lines, current_code, indent_ct, current_row)
+  # Reset completion for class context
+  $dict.delete('attr_reader')
+  $dict.delete('attr_accessor')
+  $dict.delete('initialize')
+
+  TFT.fill_rect(0, CODE_AREA_Y_START, 320, CODE_AREA_Y_END - CODE_AREA_Y_START, 0x070707)
+
+  max_visible = 16
+  total = code_lines.length
+  # Use global scroll_start for consistent scrolling
+  start_line = $scroll_start
+  end_line = [total, start_line + max_visible].min
+  y = CODE_AREA_Y_START
+
+  # Draw history lines
+  (start_line...end_line).each do |i|
+    line = code_lines[i]
+    ln = i + 1
+    line_number = ln > 9 ? 1 : 2
+
+    is_active = ($cursor_line_index == i)
+    ln_color = is_active ? 0xD4D4D4 : 0x6E6E6E
+
+    TFT.fill_rect(0, y, 34, 10, 0x070707)
+    TFT.draw_fast_v_line(28, y - 2, 10, 0x303030)
+    draw_text("#{' ' * line_number}#{ln}", 0, y, ln_color)
+    code_display = "#{'  ' * line[:indent]}#{line[:text]}"
+    draw_code_highlighted(code_display, 38, y)
+
+    if is_active
+      cursor_x = 
+        if $cursor_col.is_a?(NilClass)
+          38 + code_display.length * 6
+        else
+          38 + (2 * line[:indent] + $cursor_col) * 6
+        end
+
+      draw_text('_', cursor_x, y, 0xFFAA00)
+    end
+    y += 10
   end
+
+  # Draw current/new line
+  if y <= CODE_AREA_Y_END - 10
+    line_number = current_row > 9 ? 1 : 2
+    is_new_line_active = $cursor_line_index.nil?
+    ln_color = is_new_line_active ? 0xD4D4D4 : 0x6E6E6E
+
+    TFT.draw_fast_v_line(28, y - 2, 10, 0x303030)
+    draw_text("#{' ' * line_number}#{current_row}", 0, y, ln_color)
+    code_display = "#{'  ' * indent_ct}#{current_code}"
+    draw_code_highlighted(code_display, 38, y)
+
+    if is_new_line_active
+      cursor_x = 
+        if $cursor_col.is_a?(NilClass)
+          38 + code_display.length * 6
+        else
+          38 + (2 * indent_ct + $cursor_col) * 6
+        end
+
+      draw_text('_', cursor_x, y, 0xFFAA00)
+    end
+  end
+
+  code_lines.each do |line|
+    tokens = tokenize(line[:text])
+    tokens.each_with_index do |token, idx|
+      if token == 'class' && idx == 0
+        $dict['attr_reader'] = true
+        $dict['attr_accessor'] = true
+        $dict['initialize'] = true
+        break
+      end
+    end
+  end
+
+  draw_completion(current_code, current_row)
+end
+
+# ti-doc: Draw result with horizontal scroll offset
+def draw_result(res, offset = 0)
+  TFT.fill_rect(22, 208, 298, 12, 0x070707)
+  color = 0xD4D4D4
+  if res.class == Integer || res.class == Float
+    color = 0xB5CEA8
+  elsif res.class == String
+    color = 0xCE9178
+  elsif res.class == NilClass
+    color = 0x569CD6
+    res = 'nil'
+  elsif res.class == TrueClass || res.class == FalseClass
+    color = 0x569CD6
+  end
+  display_str = res.to_s
+  if offset > 0 && display_str.length > offset
+    display_str = display_str[offset..]
+  end
+  draw_text(display_str, 22, 210, color)
+end
+
+# ti-doc: Draw status
+def draw_status(msg, line_num = nil)
+  battery_voltage = $bat_adc.read_voltage
+
+  # Skip if nothing changed
+  if line_num == $last_status_line
+    return
+  end
+
+  $last_status_line = line_num
+
+  TFT.fill_rect(0, 227, 320, 13, 0x007ACC)
+  draw_text(msg, 4, 230, 0xFFFFFF)
+
+  right_items = []
+
+  if line_num
+    right_items << "Ln #{line_num}"
+  end
+
+  right_items << "Ruby"
+  right_items << "#{battery_voltage}V"
+
+  right_text = right_items.join('  ')
+  right_x = 320 - (right_text.length * 6) - 4
+  draw_text(right_text, right_x, 230, 0xFFFFFF)
 end
 
 # Initial draw
@@ -894,9 +915,9 @@ loop do
           $completion_index = 0
           need_full_redraw = true
         elsif code.length > 0
-          if $cursor_col.nil?
+          if $cursor_col.is_a?(NilClass)
             code = code[0..-2]
-          elsif $cursor_col > 0
+          elsif $cursor_col.is_a?(Integer) && $cursor_col > 0
             code = code[0...$cursor_col-1] + code[$cursor_col..]
             $cursor_col -= 1
           end
@@ -907,9 +928,9 @@ loop do
         # On existing code_line
         line = code_lines[$cursor_line_index]
         if line[:text].length > 0
-          if $cursor_col.nil?
+          if $cursor_col.is_a?(NilClass)
             line[:text] = line[:text][0..-2]
-          elsif $cursor_col > 0
+          elsif $cursor_col.is_a?(Integer) && $cursor_col > 0
             line[:text] = line[:text][0...$cursor_col-1] + line[:text][$cursor_col..]
             $cursor_col -= 1
           end
@@ -941,7 +962,7 @@ loop do
       end
 
       # On existing line, move to next line
-      if $cursor_line_index != nil
+      if $cursor_line_index.is_a?(Integer)
         if $cursor_line_index < code_lines.length - 1
           old_scroll = $scroll_start
           old_index = $cursor_line_index
@@ -1439,10 +1460,17 @@ loop do
         if code_lines.length > 0
           old_scroll = $scroll_start
           # 視覚的な列位置を計算
-          visual_col = indent_ct * 2 + ($cursor_col.nil? ? code.length : $cursor_col)
+          visual_col = indent_ct * 2
+          if $cursor_col.is_a?(NilClass)
+            visual_col += code.length
+          else
+            visual_col += $cursor_col
+          end
+
           $saved_new_line = code
           $saved_new_indent = indent_ct
           $cursor_line_index = code_lines.length - 1
+
           # カーソル位置調整（視覚的位置を維持）
           new_line = code_lines[$cursor_line_index]
           new_cursor = visual_col - new_line[:indent] * 2
