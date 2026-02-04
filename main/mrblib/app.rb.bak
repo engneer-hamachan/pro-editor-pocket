@@ -107,9 +107,6 @@ INDENT_INCREASE = [
 
 INDENT_DECREASE = ['end', 'else', 'elsif', 'when']
 
-#############################################################################
-#                               Common Draw                                 #
-#############################################################################
 # ti-doc: Check if string is a number
 def is_number?(str)
   return false if str == '' || str.nil?
@@ -458,9 +455,19 @@ def draw_status(msg, line_num = nil)
   draw_text(right_text, right_x, 230, 0xFFFFFF)
 end
 
-#############################################################################
-#                               Save & Load                                 #
-#############################################################################
+# Initial draw
+draw_ui 'app.rb'
+draw_status('--NORMAL--', 1)
+
+# Completion
+$dict = {}
+$completion_chars = nil
+$completion_candidates = []
+$completion_index = 0
+$draw_completion_box_y = CODE_AREA_Y_START
+$completion_box_visible = false
+
+# Slot selection modal
 $slot_modal_mode = nil  # nil, :save, :load
 $slot_selected = 0
 
@@ -517,16 +524,6 @@ def close_slot_modal
   $slot_modal_mode = nil
   $slot_selected = 0
 end
-
-#############################################################################
-#                               Completion                                  #
-#############################################################################
-$dict = {}
-$completion_chars = nil
-$completion_candidates = []
-$completion_index = 0
-$draw_completion_box_y = CODE_AREA_Y_START
-$completion_box_visible = false
 
 # ti-doc: Load constants for completion
 def load_constants
@@ -632,16 +629,6 @@ def draw_completion(current_code, code_lines_count)
     end
   end
 end
-
-
-#############################################################################
-#                               Scroll                                      #
-#############################################################################
-$cursor_line_index = nil  # nil=新規行, 0..n=code_lines[n]を編集中
-$cursor_col = nil         # nil=末尾, 0..n=文字位置
-$saved_new_line = ''      # 新規行の内容を保存
-$saved_new_indent = 0     # 新規行のインデントを保存
-$scroll_start = 0         # 現在のスクロール開始位置
 
 # ti-doc: Draw newline without scroll (prev line + new line)
 def draw_newline_no_scroll(prev_line, current_code, indent_ct, current_row, code_lines_count)
@@ -752,10 +739,6 @@ def draw_new_line_at(current_code, indent_ct, current_row, code_lines_count, is_
   end
 end
 
-# Initial draw
-draw_ui 'app.rb'
-draw_status('--NORMAL--', 1)
-
 # State for main loop
 code = ''
 code_lines = []
@@ -774,6 +757,13 @@ left_pressed = left.high?
 up_pressed = up.high?
 down_pressed = down.high?
 loop_counter = 0
+
+# Cursor navigation state
+$cursor_line_index = nil  # nil=新規行, 0..n=code_lines[n]を編集中
+$cursor_col = nil         # nil=末尾, 0..n=文字位置
+$saved_new_line = ''      # 新規行の内容を保存
+$saved_new_indent = 0     # 新規行のインデントを保存
+$scroll_start = 0         # 現在のスクロール開始位置
 
 sandbox = Sandbox.new('')
 
