@@ -677,10 +677,14 @@ def move_cursor_between_lines(target_index, code_lines)
   old_scroll = $scroll_start
   old_index = $cursor_line_index
   old_line = code_lines[old_index]
+
   visual_col = visual_column(old_line[:indent], old_line[:text].length)
   $cursor_line_index = target_index
+
   new_line = code_lines[target_index]
+
   adjust_cursor_col(visual_col, new_line[:indent], new_line[:text].length)
+
   new_scroll = adjust_scroll(target_index, code_lines.length)
 
   if old_scroll != new_scroll
