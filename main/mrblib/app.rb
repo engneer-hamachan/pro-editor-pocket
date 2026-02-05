@@ -5,19 +5,23 @@ require 'adc'
 require 'tft'
 require 'sdcard'
 
+#############################################################################
+#                              Init Constants                               #
+#############################################################################
+
+# Boot
 GPIO.pull_up_at 10
 boot = GPIO.new(10, GPIO::OUT)
 boot.write 1
 
 sleep_ms 500
 
-# track ball
+# Trackball
 left = GPIO.new(1, GPIO::IN)
 right = GPIO.new(2, GPIO::IN) 
 up = GPIO.new(3, GPIO::IN) 
 down = GPIO.new(15, GPIO::IN) 
 
-# Internal constants to ignore in completion
 INTERNAL_CONSTANTS = [
   'HIGHLIGHT_KEYWORDS',
   'INDENT_INCREASE',
@@ -107,7 +111,6 @@ INDENT_INCREASE = [
 
 INDENT_DECREASE = ['end', 'else', 'elsif', 'when']
 
-
 #############################################################################
 #                               Save & Load                                 #
 #############################################################################
@@ -171,6 +174,7 @@ end
 #############################################################################
 #                               Completion                                  #
 #############################################################################
+
 $dict = {}
 $completion_chars = nil
 $completion_candidates = []
@@ -287,11 +291,14 @@ end
 #############################################################################
 #                               Scroll                                      #
 #############################################################################
-$cursor_line_index = nil  # nil=新規行, 0..n=code_lines[n]を編集中
-$cursor_col = nil         # nil=末尾, 0..n=文字位置
-$saved_new_line = ''      # 新規行の内容を保存
-$saved_new_indent = 0     # 新規行のインデントを保存
-$scroll_start = 0         # 現在のスクロール開始位置
+# nil=new line, 0..n=code_lines[n]
+$cursor_line_index = nil  
+# nil=column end, 0..n=current column
+$cursor_col = nil         
+
+$saved_new_line = ''
+$saved_new_indent = 0
+$scroll_start = 0
 
 # ti-doc: Draw newline without scroll (prev line + new line)
 def draw_newline_no_scroll(prev_line, current_code, indent_ct, current_row, code_lines_count)
@@ -323,9 +330,8 @@ def draw_newline_no_scroll(prev_line, current_code, indent_ct, current_row, code
 end
 
 # ti-doc: Adjust scroll to ensure cursor is visible
-# Returns new scroll_start, adjusted minimally from current $scroll_start
 def adjust_scroll(cursor_line_index, code_lines_count, max_visible = 16)
-  total_lines = code_lines_count + 1  # +1 for new line
+  total_lines = code_lines_count + 1
 
   cursor_pos = 
     if cursor_line_index.is_a?(NilClass) 
@@ -334,16 +340,13 @@ def adjust_scroll(cursor_line_index, code_lines_count, max_visible = 16)
       cursor_line_index
     end
 
-  # Ensure scroll_start is valid
   max_scroll = [0, total_lines - max_visible].max
   scroll = [0, [$scroll_start, max_scroll].min].max
 
-  # If cursor is above visible area, scroll up
   if cursor_pos < scroll
     scroll = cursor_pos
   end
 
-  # If cursor is below visible area, scroll down
   if cursor_pos >= scroll + max_visible
     scroll = cursor_pos - max_visible + 1
   end
@@ -416,6 +419,7 @@ end
 #############################################################################
 #                               Common Draw                                 #
 #############################################################################
+
 # ti-doc: Check if string is a number
 def is_number?(str)
   return false if str == '' || str.nil?
@@ -773,6 +777,10 @@ def draw_status(msg, line_num = nil)
   draw_text(right_text, right_x, 230, 0xFFFFFF)
 end
 
+#############################################################################
+#                               Start Main loop                             #
+#############################################################################
+
 # Initial draw
 draw_ui 'app.rb'
 draw_status('--NORMAL--', 1)
@@ -809,6 +817,7 @@ loop do
     data = KEYBOARD_I2C.read(KEYBOARD_I2C_ADDR, 1)
     key_event = data.ord if data && data.length > 0
   rescue
+    # nop
   end
 
   if key_event > 0
@@ -835,43 +844,54 @@ loop do
 
       if mode == :save
         full_code = ''
+
         code_lines.each do |line|
           full_code << "#{'  ' * line[:indent]}#{line[:text]}\n"
         end
         full_code << "#{'  ' * indent_ct}#{code}" if code != ''
 
         save_result = SDCard.save(slot, full_code)
+
         TFT.init
         TFT.fill_screen(0x070707)
         draw_ui 'slot' + slot.to_s + '.rb'
+
         $last_status_line = nil
         draw_status(save_result ? "Saved to #{slot}!" : 'Save failed', current_row)
       else
         loaded = SDCard.load(slot)
+
         TFT.init
         TFT.fill_screen(0x070707)
         draw_ui 'slot' + slot.to_s + '.rb'
+
         if loaded
           lines = loaded.split("\n")
+
           code_lines = []
+
           lines.each do |line|
             stripped = line.lstrip
             indent = (line.length - stripped.length) / 2
             code_lines << {text: stripped, indent: indent}
           end
+
           code = ''
           indent_ct = 0
           current_row = code_lines.length + 1
           execute_code = loaded + "\n"
+
           $cursor_line_index = nil
           $cursor_col = nil
           $saved_new_line = ''
           $saved_new_indent = 0
-          $scroll_start = 0
+          $scroll_start = adjust_scroll(nil, code_lines.length)
         end
+
         $last_status_line = nil
         draw_status(loaded ? "Loaded from #{slot}!" : 'Load failed', current_row)
       end
+
       need_full_redraw = true
       next
     end
