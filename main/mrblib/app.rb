@@ -633,7 +633,6 @@ def current_line_y(code_lines_count)
 end
 
 # ti-doc: Insert a character at the current cursor position
-# Returns the (possibly modified) code string
 def insert_char_at_cursor(code, char, code_lines)
   if $cursor_line_index.nil?
     if $cursor_col.nil?
@@ -668,6 +667,57 @@ def adjust_cursor_col(visual_col, target_indent, target_text_length)
     $cursor_col = nil
   else
     $cursor_col = new_cursor
+  end
+end
+
+# ti-doc: Mark all trackball directions as consumed (debounce)
+def debounce_track
+  $up_pressed = true
+  $down_pressed = true
+  $left_pressed = true
+  $right_pressed = true
+end
+
+# ti-doc: Move cursor from one code_line to another code_line
+def move_cursor_between_lines(target_index, code_lines)
+  old_scroll = $scroll_start
+  old_index = $cursor_line_index
+  old_line = code_lines[old_index]
+  visual_col = visual_column(old_line[:indent], old_line[:text].length)
+  $cursor_line_index = target_index
+  new_line = code_lines[target_index]
+  adjust_cursor_col(visual_col, new_line[:indent], new_line[:text].length)
+  new_scroll = adjust_scroll(target_index, code_lines.length)
+
+  if old_scroll != new_scroll
+    $scroll_start = new_scroll
+    true
+  else
+    draw_line_at(old_index, false, code_lines, $scroll_start)
+    draw_line_at(target_index, true, code_lines, $scroll_start)
+    false
+  end
+end
+
+# ti-doc: Move cursor from last code_line to the new/input line
+def move_cursor_to_new_line(code_lines, current_row)
+  old_scroll = $scroll_start
+  old_index = $cursor_line_index
+  old_line = code_lines[old_index]
+  visual_col = visual_column(old_line[:indent], old_line[:text].length)
+  $cursor_line_index = nil
+  code = $saved_new_line
+  indent_ct = $saved_new_indent
+  adjust_cursor_col(visual_col, indent_ct, code.length)
+  new_scroll = adjust_scroll(nil, code_lines.length)
+
+  if old_scroll != new_scroll
+    $scroll_start = new_scroll
+    [code, indent_ct, true]
+  else
+    draw_line_at(old_index, false, code_lines, $scroll_start)
+    draw_new_line_at(code, indent_ct, current_row, code_lines.length, true)
+    [code, indent_ct, false]
   end
 end
 
@@ -849,10 +899,10 @@ need_line_redraw = false
 need_newline_redraw = false
 need_result_redraw = false
 prev_line_for_newline = nil
-right_pressed = right.high?
-left_pressed = left.high?
-up_pressed = up.high?
-down_pressed = down.high?
+$right_pressed = right.high?
+$left_pressed = left.high?
+$up_pressed = up.high?
+$down_pressed = down.high?
 loop_counter = 0
 
 sandbox = Sandbox.new('')
@@ -1048,50 +1098,10 @@ loop do
       # On existing line, move to next line
       if $cursor_line_index.is_a?(Integer)
         if $cursor_line_index < code_lines.length - 1
-          old_scroll = $scroll_start
-          old_index = $cursor_line_index
-
-          old_line = code_lines[old_index]
-          visual_col = visual_column(old_line[:indent], old_line[:text].length)
-          $cursor_line_index += 1
-          new_line = code_lines[$cursor_line_index]
-          adjust_cursor_col(visual_col, new_line[:indent], new_line[:text].length)
-
-          # Calculate Scroll
-          new_scroll = adjust_scroll($cursor_line_index, code_lines.length)
-
-          if old_scroll != new_scroll
-            $scroll_start = new_scroll
-            need_full_redraw = true
-          else
-            draw_line_at(old_index, false, code_lines, $scroll_start)
-            draw_line_at($cursor_line_index, true, code_lines, $scroll_start)
-          end
-
+          need_full_redraw = move_cursor_between_lines($cursor_line_index + 1, code_lines)
           draw_status('--NORMAL--', $cursor_line_index + 1)
         else
-          # At last code_line, move to new line
-          old_scroll = $scroll_start
-          old_index = $cursor_line_index
-
-          old_line = code_lines[old_index]
-          visual_col = visual_column(old_line[:indent], old_line[:text].length)
-          $cursor_line_index = nil
-          code = $saved_new_line
-          indent_ct = $saved_new_indent
-          adjust_cursor_col(visual_col, indent_ct, code.length)
-
-          # Calculate Scroll
-          new_scroll = adjust_scroll(nil, code_lines.length)
-
-          if old_scroll != new_scroll
-            $scroll_start = new_scroll
-            need_full_redraw = true
-          else
-            draw_line_at(old_index, false, code_lines, $scroll_start)
-            draw_new_line_at(code, indent_ct, current_row, code_lines.length, true)
-          end
-
+          code, indent_ct, need_full_redraw = move_cursor_to_new_line(code_lines, current_row)
           draw_completion(code, code_lines.length)
           draw_status('--NORMAL--', current_row)
         end
@@ -1266,48 +1276,36 @@ loop do
     # draw_text("U:#{u_high ? 1 : 0} D:#{d_high ? 1 : 0} R:#{r_high ? 1 : 0} L:#{l_high ? 1 : 0}", 202, 8, 0x6E6E6E)
 
     # Reset flags when released
-    right_pressed = false if !r_high
-    left_pressed = false if !l_high
-    up_pressed = false if !u_high
-    down_pressed = false if !d_high
+    $right_pressed = false if !r_high
+    $left_pressed = false if !l_high
+    $up_pressed = false if !u_high
+    $down_pressed = false if !d_high
 
     # Slot modal navigation
     if $slot_modal_mode
-      if u_high && !up_pressed
-        up_pressed = true
-        down_pressed = true
-        left_pressed = true
-        right_pressed = true
+      if u_high && !$up_pressed
+        debounce_track
 
         if $slot_selected >= 2
           $slot_selected -= 2
           draw_slot_modal($slot_modal_mode)
         end
-      elsif d_high && !down_pressed
-        up_pressed = true
-        down_pressed = true
-        left_pressed = true
-        right_pressed = true
+      elsif d_high && !$down_pressed
+        debounce_track
 
         if $slot_selected <= 5
           $slot_selected += 2
           draw_slot_modal($slot_modal_mode)
         end
-      elsif l_high && !left_pressed
-        up_pressed = true
-        down_pressed = true
-        left_pressed = true
-        right_pressed = true
+      elsif l_high && !$left_pressed
+        debounce_track
 
         if $slot_selected % 2 == 1
           $slot_selected -= 1
           draw_slot_modal($slot_modal_mode)
         end
-      elsif r_high && !right_pressed
-        up_pressed = true
-        down_pressed = true
-        left_pressed = true
-        right_pressed = true
+      elsif r_high && !$right_pressed
+        debounce_track
 
         if $slot_selected % 2 == 0
           $slot_selected += 1
@@ -1320,21 +1318,15 @@ loop do
 
     # Completion navigation
     if $completion_candidates.length > 0
-      if u_high && !up_pressed
-        up_pressed = true
-        down_pressed = true
-        left_pressed = true
-        right_pressed = true
+      if u_high && !$up_pressed
+        debounce_track
 
         if $completion_index > 0
           $completion_index -= 1
           need_line_redraw = true
         end
-      elsif d_high && !down_pressed
-        up_pressed = true
-        down_pressed = true
-        left_pressed = true
-        right_pressed = true
+      elsif d_high && !$down_pressed
+        debounce_track
 
         if $completion_index < $completion_candidates.length - 1
           $completion_index += 1
@@ -1346,11 +1338,8 @@ loop do
     end
 
     # Vertical cursor navigation (when not in modal or completion)
-    if u_high && !up_pressed
-      up_pressed = true
-      down_pressed = true
-      left_pressed = true
-      right_pressed = true
+    if u_high && !$up_pressed
+      debounce_track
 
       # Move cursor up
       if $cursor_line_index.nil?
@@ -1376,71 +1365,21 @@ loop do
           draw_status('--NORMAL--', $cursor_line_index + 1)
         end
       elsif $cursor_line_index > 0
-        old_scroll = $scroll_start
-        old_index = $cursor_line_index
-        old_line = code_lines[old_index]
-        visual_col = visual_column(old_line[:indent], old_line[:text].length)
-        $cursor_line_index -= 1
-        new_line = code_lines[$cursor_line_index]
-        adjust_cursor_col(visual_col, new_line[:indent], new_line[:text].length)
-        new_scroll = adjust_scroll($cursor_line_index, code_lines.length)
-
-        if old_scroll != new_scroll
-          $scroll_start = new_scroll
-          need_full_redraw = true
-        else
-          draw_line_at(old_index, false, code_lines, $scroll_start)
-          draw_line_at($cursor_line_index, true, code_lines, $scroll_start)
-        end
+        need_full_redraw = move_cursor_between_lines($cursor_line_index - 1, code_lines)
         draw_status('--NORMAL--', $cursor_line_index + 1)
       end
 
-    elsif d_high && !down_pressed
-      up_pressed = true
-      down_pressed = true
-      left_pressed = true
-      right_pressed = true
+    elsif d_high && !$down_pressed
+      debounce_track
 
       # Move cursor down
       if $cursor_line_index.nil?
         # Already on new line, can't go down
       elsif $cursor_line_index < code_lines.length - 1
-        old_scroll = $scroll_start
-        old_index = $cursor_line_index
-        old_line = code_lines[old_index]
-        visual_col = visual_column(old_line[:indent], old_line[:text].length)
-        $cursor_line_index += 1
-        new_line = code_lines[$cursor_line_index]
-        adjust_cursor_col(visual_col, new_line[:indent], new_line[:text].length)
-        new_scroll = adjust_scroll($cursor_line_index, code_lines.length)
-
-        if old_scroll != new_scroll
-          $scroll_start = new_scroll
-          need_full_redraw = true
-        else
-          draw_line_at(old_index, false, code_lines, $scroll_start)
-          draw_line_at($cursor_line_index, true, code_lines, $scroll_start)
-        end
+        need_full_redraw = move_cursor_between_lines($cursor_line_index + 1, code_lines)
         draw_status('--NORMAL--', $cursor_line_index + 1)
       else
-        # At last code_line, move to new line
-        old_scroll = $scroll_start
-        old_index = $cursor_line_index
-        old_line = code_lines[old_index]
-        visual_col = visual_column(old_line[:indent], old_line[:text].length)
-        $cursor_line_index = nil
-        code = $saved_new_line
-        indent_ct = $saved_new_indent
-        adjust_cursor_col(visual_col, indent_ct, code.length)
-        new_scroll = adjust_scroll(nil, code_lines.length)
-
-        if old_scroll != new_scroll
-          $scroll_start = new_scroll
-          need_full_redraw = true
-        else
-          draw_line_at(old_index, false, code_lines, $scroll_start)
-          draw_new_line_at(code, indent_ct, current_row, code_lines.length, true)
-        end
+        code, indent_ct, need_full_redraw = move_cursor_to_new_line(code_lines, current_row)
         draw_completion(code, code_lines.length)
         draw_status('--NORMAL--', current_row)
       end
@@ -1449,11 +1388,8 @@ loop do
     # Left/Right trackball handling
     has_code = !code_lines.empty? || !code.empty?
 
-    if r_high && !right_pressed
-      up_pressed = true
-      down_pressed = true
-      left_pressed = true
-      right_pressed = true
+    if r_high && !$right_pressed
+      debounce_track
 
       if has_code
         # Move cursor right
@@ -1476,11 +1412,8 @@ loop do
           need_result_redraw = true
         end
       end
-    elsif l_high && !left_pressed
-      up_pressed = true
-      down_pressed = true
-      left_pressed = true
-      right_pressed = true
+    elsif l_high && !$left_pressed
+      debounce_track
 
       if has_code
         # Move cursor left
