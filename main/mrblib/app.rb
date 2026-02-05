@@ -137,41 +137,30 @@ def draw_slot_modal(mode)
   box_w = 160
   box_h = 120
 
-  # Shadow
   TFT.fill_rect(box_x + 2, box_y + 2, box_w, box_h, 0x000000)
-
-  # Main background
   TFT.fill_rect(box_x, box_y, box_w, box_h, 0x252526)
-
-  # Border
   TFT.draw_rect(box_x, box_y, box_w, box_h, 0x007ACC)
 
-  # Title
   title = mode == :save ? 'Save to Slot' : 'Load from Slot'
   title_x = box_x + (box_w - title.length * 6) / 2
   draw_text(title, title_x, box_y + 6, 0xD4D4D4)
 
-  # Separator
   TFT.draw_fast_h_line(box_x + 1, box_y + 18, box_w - 2, 0x303030)
 
-  # Slots (0-7) in 2 columns
   8.times do |i|
     col = i % 2
     row = i / 2
     slot_x = box_x + 10 + col * 75
     slot_y = box_y + 24 + row * 22
 
-    # Highlight selected
     if i == $slot_selected
       TFT.fill_rect(slot_x - 2, slot_y - 2, 70, 18, 0x094771)
     end
 
-    # Slot label
-    label = "Slot #{i}"
+    label = "SLOT #{i}"
     draw_text(label, slot_x, slot_y, 0xD4D4D4)
   end
 
-  # Instructions
   inst = 'Ball:Select Return:OK'
   inst_x = box_x + (box_w - inst.length * 6) / 2
   draw_text(inst, inst_x, box_y + box_h - 12, 0x6E6E6E)
@@ -216,9 +205,11 @@ def clear_completion_box
   box_w = 100
   box_h = 6 * 10 + 20
   max_h = CODE_AREA_Y_END - box_y
+
   if box_h > max_h
     box_h = max_h
   end
+
   TFT.fill_rect(box_x, box_y, box_w, box_h, 0x070707)
   $completion_box_visible = false
 end
@@ -227,14 +218,18 @@ end
 def draw_completion(current_code, code_lines_count)
   $completion_chars = nil
   $completion_candidates = []
+
   clear_completion_box
+
   return if current_code == ''
 
   tokens = tokenize(current_code)
   target = tokens.last
+
   return if target.nil? || target == '' || target == ' '
 
   candidates = []
+
   $dict.keys.each do |key|
     if key.length > target.length && key[0, target.length] == target
       candidates << key
@@ -247,7 +242,6 @@ def draw_completion(current_code, code_lines_count)
   candidates << '(skip)'
   $completion_candidates = candidates
 
-  # Reset index if out of bounds
   if $completion_index >= candidates.length
     $completion_index = 0
   end
@@ -260,32 +254,26 @@ def draw_completion(current_code, code_lines_count)
     $completion_chars = selected[target.length, selected.length]
   end
 
-  # Draw completion box
   box_x = 222
   box_y = CODE_AREA_Y_START + 2 + (code_lines_count * 10 + 10)
+
   if (box_y + 70) >= 207
     box_y = 116
   end
+
   box_w = 96
   box_h = candidates.length * 10 + 4
 
   $draw_completion_box_y = box_y
   $completion_box_visible = true
 
-  # Shadow effect
   TFT.fill_rect(box_x + 1, box_y + 1, box_w, box_h, 0x000000)
-
-  # Main background
   TFT.fill_rect(box_x, box_y, box_w, box_h, 0x252526)
-
-  # Border
   TFT.draw_rect(box_x, box_y, box_w, box_h, 0x303030)
 
-  # Selected candidate highlight
   highlight_y = box_y + 1 + $completion_index * 10
   TFT.fill_rect(box_x + 1, highlight_y, box_w - 2, 10, 0x094771)
 
-  # Draw candidates
   candidates.each_with_index do |candidate, idx|
     y = box_y + 2 + idx * 10
 
@@ -327,12 +315,13 @@ def draw_newline_no_scroll(prev_line, current_code, indent_ct, current_row, code
   draw_code_highlighted("#{'  ' * prev_line[:indent]}#{prev_line[:text]}", 38, prev_y)
 
   y = current_line_y(code_lines_count)
+
   return if y > CODE_AREA_Y_END - 10
 
   line_number = current_row > 9 ? 1 : 2
 
-  # Line number with highlight (current line)
   TFT.draw_fast_v_line(28, y - 2, 10, 0x303030)
+
   draw_text("#{' ' * line_number}#{current_row}", 0, y, 0xD4D4D4)
   code_display = "#{'  ' * indent_ct}#{current_code}"
   draw_code_highlighted(code_display, 38, y)
@@ -371,10 +360,13 @@ def draw_line_at(line_index, is_active, code_lines, scroll_start)
   line_index = line_index.to_i
 
   return if line_index < scroll_start
+
   visible_offset = line_index - scroll_start
+
   return if visible_offset >= 16
 
   y = CODE_AREA_Y_START + visible_offset * 10
+
   return if y > CODE_AREA_Y_END - 10
 
   line = code_lines[line_index]
@@ -480,6 +472,7 @@ def tokenize(code)
       current_token << c
     end
   end
+
   tokens << current_token if current_token != ''
   tokens
 end
@@ -660,7 +653,8 @@ end
 
 # ti-doc: Adjust $cursor_col to maintain visual position when moving between lines
 def adjust_cursor_col(visual_col, target_indent, target_text_length)
-  new_cursor = visual_col - target_indent * 2
+  new_cursor = visual_col.to_i - target_indent * 2
+
   if new_cursor < 0
     $cursor_col = 0
   elsif new_cursor >= target_text_length
@@ -705,20 +699,25 @@ def move_cursor_to_new_line(code_lines, current_row)
   old_index = $cursor_line_index
   old_line = code_lines[old_index]
   visual_col = visual_column(old_line[:indent], old_line[:text].length)
+
   $cursor_line_index = nil
+
   code = $saved_new_line
   indent_ct = $saved_new_indent
   adjust_cursor_col(visual_col, indent_ct, code.length)
   new_scroll = adjust_scroll(nil, code_lines.length)
 
+  need_full_redraw = false
+
   if old_scroll != new_scroll
     $scroll_start = new_scroll
-    [code, indent_ct, true]
+    need_full_redraw = true
   else
     draw_line_at(old_index, false, code_lines, $scroll_start)
     draw_new_line_at(code, indent_ct, current_row, code_lines.length, true)
-    [code, indent_ct, false]
   end
+
+  [code, indent_ct, need_full_redraw]
 end
 
 # ti-doc: Draw current line only
@@ -1396,7 +1395,7 @@ loop do
         current_text = $cursor_line_index.nil? ? code : code_lines[$cursor_line_index][:text]
         if $cursor_col.nil?
           # Do nothing if at end
-        elsif $cursor_col < current_text.length
+        elsif $cursor_col.is_a?(Integer) && $cursor_col < current_text.length
           $cursor_col += 1
           if $cursor_col >= current_text.length
             $cursor_col = nil
