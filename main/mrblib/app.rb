@@ -903,18 +903,20 @@ loop do
       indent_ct = 0
       execute_code = ''
       current_row = 1
+      need_full_redraw = true
+
       $cursor_line_index = nil
       $cursor_col = nil
       $saved_new_line = ''
       $saved_new_indent = 0
       $scroll_start = 0
-      need_full_redraw = true
+
       next
 
     # backspace
     elsif key_event == 8
       if $cursor_line_index.nil?
-        # On new line
+        # On Empty line
         if code == '' && code_lines.length > 0
           # Move cursor to prev line
           prev_line = code_lines.pop
@@ -934,6 +936,7 @@ loop do
 
           $completion_index = 0
           need_full_redraw = true
+
         elsif code.length > 0
           if $cursor_col.is_a?(NilClass)
             code = code[0..-2]
@@ -941,12 +944,15 @@ loop do
             code = code[0...$cursor_col-1] + code[$cursor_col..]
             $cursor_col -= 1
           end
+
           $completion_index = 0
           need_line_redraw = true
         end
+
       else
         # On existing code_line
         line = code_lines[$cursor_line_index]
+
         if line[:text].length > 0
           if $cursor_col.is_a?(NilClass)
             line[:text] = line[:text][0..-2]
@@ -954,6 +960,7 @@ loop do
             line[:text] = line[:text][0...$cursor_col-1] + line[:text][$cursor_col..]
             $cursor_col -= 1
           end
+
           $completion_index = 0
           need_line_redraw = true
         end
@@ -968,16 +975,22 @@ loop do
         else
           code_lines[$cursor_line_index][:text] << $completion_chars
         end
+
         $cursor_col = nil  # カーソルを末尾に移動
         $completion_index = 0
         $completion_chars = nil
+
         need_line_redraw = true
+
         next
+
       elsif $completion_candidates.length > 0
-        # Skip selected - just close completion modal
+        # Skip selected
         $completion_index = 0
         $completion_candidates = []
+
         clear_completion_box
+
         next
       end
 
@@ -986,13 +999,16 @@ loop do
         if $cursor_line_index < code_lines.length - 1
           old_scroll = $scroll_start
           old_index = $cursor_line_index
-          # 視覚的な列位置を計算
+
+          # Caluculate column with Indent
           old_line = code_lines[old_index]
           visual_col = old_line[:indent] * 2 + ($cursor_col.nil? ? old_line[:text].length : $cursor_col)
           $cursor_line_index += 1
-          # カーソル位置調整（視覚的位置を維持）
+
+          # Move Cursor
           new_line = code_lines[$cursor_line_index]
           new_cursor = visual_col - new_line[:indent] * 2
+
           if new_cursor < 0
             $cursor_col = 0
           elsif new_cursor >= new_line[:text].length
@@ -1000,7 +1016,10 @@ loop do
           else
             $cursor_col = new_cursor
           end
+
+          # Calculate Scroll
           new_scroll = adjust_scroll($cursor_line_index, code_lines.length)
+
           if old_scroll != new_scroll
             $scroll_start = new_scroll
             need_full_redraw = true
@@ -1008,18 +1027,22 @@ loop do
             draw_line_at(old_index, false, code_lines, $scroll_start)
             draw_line_at($cursor_line_index, true, code_lines, $scroll_start)
           end
+
           draw_status('--NORMAL--', $cursor_line_index + 1)
         else
           # At last code_line, move to new line
           old_scroll = $scroll_start
           old_index = $cursor_line_index
-          # 視覚的な列位置を計算
+
+          # Caluculate column with indent
           old_line = code_lines[old_index]
           visual_col = old_line[:indent] * 2 + ($cursor_col.nil? ? old_line[:text].length : $cursor_col)
+
           $cursor_line_index = nil
           code = $saved_new_line
           indent_ct = $saved_new_indent
-          # カーソル位置調整（視覚的位置を維持）
+
+          # Move Cursor
           new_cursor = visual_col - indent_ct * 2
           if new_cursor < 0
             $cursor_col = 0
@@ -1028,7 +1051,10 @@ loop do
           else
             $cursor_col = new_cursor
           end
+
+          # Calculate Scroll
           new_scroll = adjust_scroll(nil, code_lines.length)
+
           if old_scroll != new_scroll
             $scroll_start = new_scroll
             need_full_redraw = true
@@ -1036,9 +1062,11 @@ loop do
             draw_line_at(old_index, false, code_lines, $scroll_start)
             draw_new_line_at(code, indent_ct, current_row, code_lines.length, true)
           end
+
           draw_completion(code, code_lines.length)
           draw_status('--NORMAL--', current_row)
         end
+
         next
       end
 
@@ -1073,7 +1101,7 @@ loop do
 
         code = ''
         current_row += 1
-        $cursor_col = nil  # 新しい行の末尾に移動
+        $cursor_col = nil
 
         # Adjust scroll to show new line
         old_scroll = $scroll_start
