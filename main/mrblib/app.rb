@@ -35,17 +35,6 @@ INTERNAL_CONSTANTS = [
   'KEYBOARD_I2C'
 ]
 
-# Special key inputs
-SPECIAL_INPUT_KEYS = []
-SPECIAL_INPUT_KEYS[15] = '['
-SPECIAL_INPUT_KEYS[26] = ']'
-SPECIAL_INPUT_KEYS[31] = '{'
-SPECIAL_INPUT_KEYS[1] = '}'
-SPECIAL_INPUT_KEYS[23] = '<'
-SPECIAL_INPUT_KEYS[24] = '>'
-SPECIAL_INPUT_KEYS[3] = '='
-SPECIAL_INPUT_KEYS[224] = '|'
-
 # Initialize TFT Display
 TFT.init
 TFT.fill_screen(0x070707)
@@ -668,7 +657,6 @@ def draw_code_area(code_lines, current_code, indent_ct, current_row)
 
   max_visible = 16
   total = code_lines.length
-
   # Use global scroll_start for consistent scrolling
   start_line = $scroll_start
   end_line = [total, start_line + max_visible].min
@@ -685,7 +673,6 @@ def draw_code_area(code_lines, current_code, indent_ct, current_row)
 
     TFT.fill_rect(0, y, 34, 10, 0x070707)
     TFT.draw_fast_v_line(28, y - 2, 10, 0x303030)
-
     draw_text("#{' ' * line_number}#{ln}", 0, y, ln_color)
     code_display = "#{'  ' * line[:indent]}#{line[:text]}"
     draw_code_highlighted(code_display, 38, y)
@@ -710,7 +697,6 @@ def draw_code_area(code_lines, current_code, indent_ct, current_row)
     ln_color = is_new_line_active ? 0xD4D4D4 : 0x6E6E6E
 
     TFT.draw_fast_v_line(28, y - 2, 10, 0x303030)
-
     draw_text("#{' ' * line_number}#{current_row}", 0, y, ln_color)
     code_display = "#{'  ' * indent_ct}#{current_code}"
     draw_code_highlighted(code_display, 38, y)
@@ -746,7 +732,6 @@ end
 def draw_result(res, offset = 0)
   TFT.fill_rect(22, 208, 298, 12, 0x070707)
   color = 0xD4D4D4
-
   if res.class == Integer || res.class == Float
     color = 0xB5CEA8
   elsif res.class == String
@@ -757,13 +742,10 @@ def draw_result(res, offset = 0)
   elsif res.class == TrueClass || res.class == FalseClass
     color = 0x569CD6
   end
-
   display_str = res.to_s
-
   if offset > 0 && display_str.length > offset
     display_str = display_str[offset..]
   end
-
   draw_text(display_str, 22, 210, color)
 end
 
@@ -816,7 +798,10 @@ need_line_redraw = false
 need_newline_redraw = false
 need_result_redraw = false
 prev_line_for_newline = nil
-track_moved = right.high? || left.high? || up.high? || down.high?
+right_pressed = right.high?
+left_pressed = left.high?
+up_pressed = up.high?
+down_pressed = down.high?
 loop_counter = 0
 
 sandbox = Sandbox.new('')
@@ -991,7 +976,7 @@ loop do
           code_lines[$cursor_line_index][:text] << $completion_chars
         end
 
-        $cursor_col = nil
+        $cursor_col = nil  # カーソルを末尾に移動
         $completion_index = 0
         $completion_chars = nil
 
@@ -1085,7 +1070,6 @@ loop do
         next
       end
 
-      # Add execute code
       if code != ''
         execute_code << code
         execute_code << "\n"
@@ -1130,7 +1114,7 @@ loop do
           need_newline_redraw = true
         end
 
-      # Run execute code
+      # Execute code
       elsif indent_ct == 0 && code_lines.length > 0
         # Rebuild execute_code from code_lines (in case lines were edited)
         execute_code = ''
@@ -1205,17 +1189,16 @@ loop do
         execute_code = ''
         indent_ct = 0
         current_row = 1
-        need_full_redraw = true
-
         $cursor_line_index = nil
         $cursor_col = nil
         $saved_new_line = ''
         $saved_new_indent = 0
         $scroll_start = 0
+        need_full_redraw = true
       end
 
-    elsif SPECIAL_INPUT_KEYS[key_event]
-      char = SPECIAL_INPUT_KEYS[key_event]
+    elsif key_event == 15
+      char = '['
       if $cursor_line_index.nil?
         if $cursor_col.nil?
           code << char
@@ -1225,7 +1208,6 @@ loop do
         end
       else
         text = code_lines[$cursor_line_index][:text]
-
         if $cursor_col.nil?
           code_lines[$cursor_line_index][:text] << char
         else
@@ -1233,7 +1215,153 @@ loop do
           $cursor_col += 1
         end
       end
+      $completion_index = 0
+      need_line_redraw = true
 
+    elsif key_event == 26
+      char = ']'
+      if $cursor_line_index.nil?
+        if $cursor_col.nil?
+          code << char
+        else
+          code = code[0...$cursor_col] + char + code[$cursor_col..]
+          $cursor_col += 1
+        end
+      else
+        text = code_lines[$cursor_line_index][:text]
+        if $cursor_col.nil?
+          code_lines[$cursor_line_index][:text] << char
+        else
+          code_lines[$cursor_line_index][:text] = text[0...$cursor_col] + char + text[$cursor_col..]
+          $cursor_col += 1
+        end
+      end
+      $completion_index = 0
+      need_line_redraw = true
+
+    elsif key_event == 31
+      char = '{'
+      if $cursor_line_index.nil?
+        if $cursor_col.nil?
+          code << char
+        else
+          code = code[0...$cursor_col] + char + code[$cursor_col..]
+          $cursor_col += 1
+        end
+      else
+        text = code_lines[$cursor_line_index][:text]
+        if $cursor_col.nil?
+          code_lines[$cursor_line_index][:text] << char
+        else
+          code_lines[$cursor_line_index][:text] = text[0...$cursor_col] + char + text[$cursor_col..]
+          $cursor_col += 1
+        end
+      end
+      $completion_index = 0
+      need_line_redraw = true
+
+    elsif key_event == 1
+      char = '}'
+      if $cursor_line_index.nil?
+        if $cursor_col.nil?
+          code << char
+        else
+          code = code[0...$cursor_col] + char + code[$cursor_col..]
+          $cursor_col += 1
+        end
+      else
+        text = code_lines[$cursor_line_index][:text]
+        if $cursor_col.nil?
+          code_lines[$cursor_line_index][:text] << char
+        else
+          code_lines[$cursor_line_index][:text] = text[0...$cursor_col] + char + text[$cursor_col..]
+          $cursor_col += 1
+        end
+      end
+      $completion_index = 0
+      need_line_redraw = true
+
+    elsif key_event == 23
+      char = '<'
+      if $cursor_line_index.nil?
+        if $cursor_col.nil?
+          code << char
+        else
+          code = code[0...$cursor_col] + char + code[$cursor_col..]
+          $cursor_col += 1
+        end
+      else
+        text = code_lines[$cursor_line_index][:text]
+        if $cursor_col.nil?
+          code_lines[$cursor_line_index][:text] << char
+        else
+          code_lines[$cursor_line_index][:text] = text[0...$cursor_col] + char + text[$cursor_col..]
+          $cursor_col += 1
+        end
+      end
+      $completion_index = 0
+      need_line_redraw = true
+
+    elsif key_event == 24
+      char = '>'
+      if $cursor_line_index.nil?
+        if $cursor_col.nil?
+          code << char
+        else
+          code = code[0...$cursor_col] + char + code[$cursor_col..]
+          $cursor_col += 1
+        end
+      else
+        text = code_lines[$cursor_line_index][:text]
+        if $cursor_col.nil?
+          code_lines[$cursor_line_index][:text] << char
+        else
+          code_lines[$cursor_line_index][:text] = text[0...$cursor_col] + char + text[$cursor_col..]
+          $cursor_col += 1
+        end
+      end
+      $completion_index = 0
+      need_line_redraw = true
+
+    elsif key_event == 3
+      char = '='
+      if $cursor_line_index.nil?
+        if $cursor_col.nil?
+          code << char
+        else
+          code = code[0...$cursor_col] + char + code[$cursor_col..]
+          $cursor_col += 1
+        end
+      else
+        text = code_lines[$cursor_line_index][:text]
+        if $cursor_col.nil?
+          code_lines[$cursor_line_index][:text] << char
+        else
+          code_lines[$cursor_line_index][:text] = text[0...$cursor_col] + char + text[$cursor_col..]
+          $cursor_col += 1
+        end
+      end
+      $completion_index = 0
+      need_line_redraw = true
+
+    elsif key_event == 224
+      char = '|'
+      if $cursor_line_index.nil?
+        if $cursor_col.nil?
+          code << char
+        else
+          code = code[0...$cursor_col] + char + code[$cursor_col..]
+          $cursor_col += 1
+        end
+      else
+        text = code_lines[$cursor_line_index][:text]
+        if $cursor_col.nil?
+          code_lines[$cursor_line_index][:text] << char
+        else
+          code_lines[$cursor_line_index][:text] = text[0...$cursor_col] + char + text[$cursor_col..]
+          $cursor_col += 1
+        end
+      end
       $completion_index = 0
       need_line_redraw = true
 
@@ -1242,7 +1370,6 @@ loop do
       $slot_modal_mode = :save
       $slot_selected = 0
       draw_slot_modal(:save)
-
       next
 
     # SDCard load - open slot modal
@@ -1250,12 +1377,10 @@ loop do
       $slot_modal_mode = :load
       $slot_selected = 0
       draw_slot_modal(:load)
-
       next
 
     elsif key_event >= 32 && key_event < 127
       char = key_event.chr
-
       if $cursor_line_index.nil?
         if $cursor_col.nil?
           code << char
@@ -1263,10 +1388,8 @@ loop do
           code = code[0...$cursor_col] + char + code[$cursor_col..]
           $cursor_col += 1
         end
-
       else
         text = code_lines[$cursor_line_index][:text]
-
         if $cursor_col.nil?
           code_lines[$cursor_line_index][:text] << char
         else
@@ -1274,7 +1397,6 @@ loop do
           $cursor_col += 1
         end
       end
-
       $completion_index = 0
       need_line_redraw = true
     end
@@ -1294,28 +1416,49 @@ loop do
     # draw_text("U:#{u_high ? 1 : 0} D:#{d_high ? 1 : 0} R:#{r_high ? 1 : 0} L:#{l_high ? 1 : 0}", 202, 8, 0x6E6E6E)
 
     # Reset flags when released
-    track_moved = false if !r_high && !l_high && !u_high && !d_high
+    right_pressed = false if !r_high
+    left_pressed = false if !l_high
+    up_pressed = false if !u_high
+    down_pressed = false if !d_high
 
     # Slot modal navigation
-    if $slot_modal_mode && !track_moved
-      track_moved = true
+    if $slot_modal_mode
+      if u_high && !up_pressed
+        up_pressed = true
+        down_pressed = true
+        left_pressed = true
+        right_pressed = true
 
-      if u_high
         if $slot_selected >= 2
           $slot_selected -= 2
           draw_slot_modal($slot_modal_mode)
         end
-      elsif d_high
+      elsif d_high && !down_pressed
+        up_pressed = true
+        down_pressed = true
+        left_pressed = true
+        right_pressed = true
+
         if $slot_selected <= 5
           $slot_selected += 2
           draw_slot_modal($slot_modal_mode)
         end
-      elsif l_high
+      elsif l_high && !left_pressed
+        up_pressed = true
+        down_pressed = true
+        left_pressed = true
+        right_pressed = true
+
         if $slot_selected % 2 == 1
           $slot_selected -= 1
           draw_slot_modal($slot_modal_mode)
         end
-      elsif r_high
+      elsif r_high && !right_pressed
+        up_pressed = true
+        down_pressed = true
+        left_pressed = true
+        right_pressed = true
+
         if $slot_selected % 2 == 0
           $slot_selected += 1
           draw_slot_modal($slot_modal_mode)
@@ -1326,15 +1469,23 @@ loop do
     end
 
     # Completion navigation
-    if $completion_candidates.length > 0 && !track_moved
-      track_moved = true
+    if $completion_candidates.length > 0
+      if u_high && !up_pressed
+        up_pressed = true
+        down_pressed = true
+        left_pressed = true
+        right_pressed = true
 
-      if u_high
         if $completion_index > 0
           $completion_index -= 1
           need_line_redraw = true
         end
-      elsif d_high
+      elsif d_high && !down_pressed
+        up_pressed = true
+        down_pressed = true
+        left_pressed = true
+        right_pressed = true
+
         if $completion_index < $completion_candidates.length - 1
           $completion_index += 1
           need_line_redraw = true
@@ -1345,68 +1496,32 @@ loop do
     end
 
     # Vertical cursor navigation (when not in modal or completion)
-    if !track_moved
-      track_moved = true
+    if u_high && !up_pressed
+      up_pressed = true
+      down_pressed = true
+      left_pressed = true
+      right_pressed = true
 
       # Move cursor up
-      if u_high
-        if $cursor_line_index.nil?
-          # Currently on new line, move to last code_line
-          if code_lines.length > 0
-            old_scroll = $scroll_start
-
-            # Calculate column with indent
-            visual_col = indent_ct * 2
-            if $cursor_col.is_a?(NilClass)
-              visual_col += code.length
-            else
-              visual_col += $cursor_col
-            end
-
-            $saved_new_line = code
-            $saved_new_indent = indent_ct
-
-            # Move to cursor
-            $cursor_line_index = code_lines.length - 1
-            new_line = code_lines[$cursor_line_index]
-            new_cursor = visual_col - new_line[:indent] * 2
-
-            if new_cursor < 0
-              $cursor_col = 0
-            elsif new_cursor >= new_line[:text].length
-              $cursor_col = nil
-            else
-              $cursor_col = new_cursor
-            end
-
-            # Calculate Scroll
-            new_scroll = adjust_scroll($cursor_line_index, code_lines.length)
-
-            if old_scroll != new_scroll
-              $scroll_start = new_scroll
-              need_full_redraw = true
-            else
-              draw_line_at($cursor_line_index, true, code_lines, $scroll_start)
-              draw_new_line_at($saved_new_line, $saved_new_indent, current_row, code_lines.length, false)
-            end
-
-            clear_completion_box
-            draw_status('--NORMAL--', $cursor_line_index + 1)
+      if $cursor_line_index.nil?
+        # Currently on new line, move to last code_line
+        if code_lines.length > 0
+          old_scroll = $scroll_start
+          # 視覚的な列位置を計算
+          visual_col = indent_ct * 2
+          if $cursor_col.is_a?(NilClass)
+            visual_col += code.length
+          else
+            visual_col += $cursor_col
           end
 
-        elsif $cursor_line_index > 0
-          old_scroll = $scroll_start
-          old_index = $cursor_line_index
-          
-          # Calculate column with indent
-          old_line = code_lines[old_index]
-          visual_col = old_line[:indent] * 2 + ($cursor_col.nil? ? old_line[:text].length : $cursor_col)
+          $saved_new_line = code
+          $saved_new_indent = indent_ct
+          $cursor_line_index = code_lines.length - 1
 
-          # Move to cursor
-          $cursor_line_index -= 1
+          # カーソル位置調整（視覚的位置を維持）
           new_line = code_lines[$cursor_line_index]
           new_cursor = visual_col - new_line[:indent] * 2
-
           if new_cursor < 0
             $cursor_col = 0
           elsif new_cursor >= new_line[:text].length
@@ -1414,163 +1529,170 @@ loop do
           else
             $cursor_col = new_cursor
           end
-
-          # Calculate Scroll
           new_scroll = adjust_scroll($cursor_line_index, code_lines.length)
 
           if old_scroll != new_scroll
             $scroll_start = new_scroll
             need_full_redraw = true
           else
-            draw_line_at(old_index, false, code_lines, $scroll_start)
             draw_line_at($cursor_line_index, true, code_lines, $scroll_start)
+            draw_new_line_at($saved_new_line, $saved_new_indent, current_row, code_lines.length, false)
           end
-
+          clear_completion_box
           draw_status('--NORMAL--', $cursor_line_index + 1)
         end
-
-      elsif d_high
-        # Move cursor down
-        if $cursor_line_index.nil?
-          # Already on new line, can't go down
-          next
-        end
-
-        if $cursor_line_index < code_lines.length - 1
-          old_scroll = $scroll_start
-          old_index = $cursor_line_index
-
-          # Calculate column with indent
-          old_line = code_lines[old_index]
-          visual_col = old_line[:indent] * 2 + ($cursor_col.nil? ? old_line[:text].length : $cursor_col)
-
-          # Move to cursor
-          $cursor_line_index += 1
-          new_line = code_lines[$cursor_line_index]
-          new_cursor = visual_col - new_line[:indent] * 2
-
-          if new_cursor < 0
-            $cursor_col = 0
-          elsif new_cursor >= new_line[:text].length
-            $cursor_col = nil
-          else
-            $cursor_col = new_cursor
-          end
-
-          # Calculate Scroll
-          new_scroll = adjust_scroll($cursor_line_index, code_lines.length)
-
-          if old_scroll != new_scroll
-            $scroll_start = new_scroll
-            need_full_redraw = true
-          else
-            draw_line_at(old_index, false, code_lines, $scroll_start)
-            draw_line_at($cursor_line_index, true, code_lines, $scroll_start)
-          end
-
-          draw_status('--NORMAL--', $cursor_line_index + 1)
-
+      elsif $cursor_line_index > 0
+        old_scroll = $scroll_start
+        old_index = $cursor_line_index
+        # 視覚的な列位置を計算
+        old_line = code_lines[old_index]
+        visual_col = old_line[:indent] * 2 + ($cursor_col.nil? ? old_line[:text].length : $cursor_col)
+        $cursor_line_index -= 1
+        # カーソル位置調整（視覚的位置を維持）
+        new_line = code_lines[$cursor_line_index]
+        new_cursor = visual_col - new_line[:indent] * 2
+        if new_cursor < 0
+          $cursor_col = 0
+        elsif new_cursor >= new_line[:text].length
+          $cursor_col = nil
         else
-          # At last code_line, move to new line
-          old_scroll = $scroll_start
-          old_index = $cursor_line_index
-          code = $saved_new_line
-          indent_ct = $saved_new_indent
-
-          # Calculate column with indent
-          old_line = code_lines[old_index]
-          visual_col = old_line[:indent] * 2 + ($cursor_col.nil? ? old_line[:text].length : $cursor_col)
-
-          # Move to cursor
-          $cursor_line_index = nil
-          new_cursor = visual_col - indent_ct * 2
-
-          if new_cursor < 0
-            $cursor_col = 0
-          elsif new_cursor >= code.length
-            $cursor_col = nil
-          else
-            $cursor_col = new_cursor
-          end
-
-          # Calculate Scroll
-          new_scroll = adjust_scroll(nil, code_lines.length)
-
-          if old_scroll != new_scroll
-            $scroll_start = new_scroll
-            need_full_redraw = true
-          else
-            draw_line_at(old_index, false, code_lines, $scroll_start)
-            draw_new_line_at(code, indent_ct, current_row, code_lines.length, true)
-          end
-
-          draw_completion(code, code_lines.length)
-          draw_status('--NORMAL--', current_row)
+          $cursor_col = new_cursor
         end
+        new_scroll = adjust_scroll($cursor_line_index, code_lines.length)
+
+        if old_scroll != new_scroll
+          $scroll_start = new_scroll
+          need_full_redraw = true
+        else
+          draw_line_at(old_index, false, code_lines, $scroll_start)
+          draw_line_at($cursor_line_index, true, code_lines, $scroll_start)
+        end
+        draw_status('--NORMAL--', $cursor_line_index + 1)
+      end
+
+    elsif d_high && !down_pressed
+      up_pressed = true
+      down_pressed = true
+      left_pressed = true
+      right_pressed = true
+
+      # Move cursor down
+      if $cursor_line_index.nil?
+        # Already on new line, can't go down
+      elsif $cursor_line_index < code_lines.length - 1
+        old_scroll = $scroll_start
+        old_index = $cursor_line_index
+        # 視覚的な列位置を計算
+        old_line = code_lines[old_index]
+        visual_col = old_line[:indent] * 2 + ($cursor_col.nil? ? old_line[:text].length : $cursor_col)
+        $cursor_line_index += 1
+        # カーソル位置調整（視覚的位置を維持）
+        new_line = code_lines[$cursor_line_index]
+        new_cursor = visual_col - new_line[:indent] * 2
+        if new_cursor < 0
+          $cursor_col = 0
+        elsif new_cursor >= new_line[:text].length
+          $cursor_col = nil
+        else
+          $cursor_col = new_cursor
+        end
+        new_scroll = adjust_scroll($cursor_line_index, code_lines.length)
+
+        if old_scroll != new_scroll
+          $scroll_start = new_scroll
+          need_full_redraw = true
+        else
+          draw_line_at(old_index, false, code_lines, $scroll_start)
+          draw_line_at($cursor_line_index, true, code_lines, $scroll_start)
+        end
+        draw_status('--NORMAL--', $cursor_line_index + 1)
+      else
+        # At last code_line, move to new line
+        old_scroll = $scroll_start
+        old_index = $cursor_line_index
+        # 視覚的な列位置を計算
+        old_line = code_lines[old_index]
+        visual_col = old_line[:indent] * 2 + ($cursor_col.nil? ? old_line[:text].length : $cursor_col)
+        $cursor_line_index = nil
+        code = $saved_new_line
+        indent_ct = $saved_new_indent
+        # カーソル位置調整（視覚的位置を維持）
+        new_cursor = visual_col - indent_ct * 2
+        if new_cursor < 0
+          $cursor_col = 0
+        elsif new_cursor >= code.length
+          $cursor_col = nil
+        else
+          $cursor_col = new_cursor
+        end
+        new_scroll = adjust_scroll(nil, code_lines.length)
+
+        if old_scroll != new_scroll
+          $scroll_start = new_scroll
+          need_full_redraw = true
+        else
+          draw_line_at(old_index, false, code_lines, $scroll_start)
+          draw_new_line_at(code, indent_ct, current_row, code_lines.length, true)
+        end
+        draw_completion(code, code_lines.length)
+        draw_status('--NORMAL--', current_row)
       end
     end
 
     # Left/Right trackball handling
-    if !track_moved
-      track_moved = true
-      has_code = !code_lines.empty? || !code.empty?
+    has_code = !code_lines.empty? || !code.empty?
 
-      if r_high
+    if r_high && !right_pressed
+      up_pressed = true
+      down_pressed = true
+      left_pressed = true
+      right_pressed = true
+
+      if has_code
+        # カーソルを右に移動
+        current_text = $cursor_line_index.nil? ? code : code_lines[$cursor_line_index][:text]
         if $cursor_col.nil?
-          # nop. Cursor at code last
-          next
-        end
-
-        # Move code area
-        if has_code
-          current_text = $cursor_line_index.nil? ? code : code_lines[$cursor_line_index][:text]
-
-          if $cursor_col < current_text.length
-            $cursor_col += 1
-
-            if $cursor_col >= current_text.length
-              $cursor_col = nil
-            end
-
-            need_line_redraw = true
+          # 末尾なら何もしない
+        elsif $cursor_col < current_text.length
+          $cursor_col += 1
+          if $cursor_col >= current_text.length
+            $cursor_col = nil
           end
-
-        # Move result area
-        elsif result
-          res_str = result.to_s
-          check_offset = result_offset + 8
-
-          if res_str.length >= check_offset
-            result_offset += 8
-            need_result_redraw = true
-          end
-        end
-
-      elsif l_high
-        # Move code area
-        if has_code
-          current_text = $cursor_line_index.nil? ? code : code_lines[$cursor_line_index][:text]
-
-          if $cursor_col.nil?
-            $cursor_col = current_text.length - 1 if current_text.length > 0
-          elsif $cursor_col > 0
-            $cursor_col -= 1
-          end
-
           need_line_redraw = true
-
-        # Move result area
-        elsif result
-          check_offset = result_offset - 8
-
-          if check_offset >= 0
-            result_offset = check_offset
-          else
-            result_offset = 0
-          end
-
+        end
+      elsif result
+        # コードが無い時のみresultスクロール
+        res_str = result.to_s
+        check_offset = result_offset + 8
+        if res_str.length >= check_offset
+          result_offset += 8
           need_result_redraw = true
         end
+      end
+    elsif l_high && !left_pressed
+      up_pressed = true
+      down_pressed = true
+      left_pressed = true
+      right_pressed = true
+
+      if has_code
+        # カーソルを左に移動
+        current_text = $cursor_line_index.nil? ? code : code_lines[$cursor_line_index][:text]
+        if $cursor_col.nil?
+          $cursor_col = current_text.length - 1 if current_text.length > 0
+        elsif $cursor_col > 0
+          $cursor_col -= 1
+        end
+        need_line_redraw = true
+      elsif result
+        # コードが無い時のみresultスクロール
+        check_offset = result_offset - 8
+        if check_offset >= 0
+          result_offset = check_offset
+        else
+          result_offset = 0
+        end
+        need_result_redraw = true
       end
     end
 
@@ -1583,18 +1705,15 @@ loop do
     need_full_redraw = false
     need_line_redraw = false
     need_newline_redraw = false
-
   elsif need_newline_redraw
     draw_newline_no_scroll(prev_line_for_newline, code, indent_ct, current_row, code_lines.length)
     need_newline_redraw = false
-
   elsif need_line_redraw
     if $cursor_line_index.nil?
       draw_current_line(code, indent_ct, current_row, code_lines.length)
     else
       draw_line_at($cursor_line_index, true, code_lines, $scroll_start)
     end
-
     need_line_redraw = false
   end
 
