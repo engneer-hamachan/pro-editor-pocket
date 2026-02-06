@@ -959,7 +959,7 @@ loop do
         draw_ui 'slot' + slot.to_s + '.rb'
 
         $last_status_line = nil
-        draw_status(save_result ? "Saved to #{slot}!" : 'Save failed', current_row)
+        draw_status(save_result ? "SAVED" : 'FAILED', current_row)
       else
         loaded = SDCard.load(slot)
 
@@ -991,7 +991,7 @@ loop do
         end
 
         $last_status_line = nil
-        draw_status(loaded ? "Loaded from #{slot}!" : 'Load failed', current_row)
+        draw_status(loaded ? "lOADED" : 'FAILED', current_row)
       end
 
       need_full_redraw = true
@@ -1110,6 +1110,7 @@ loop do
         next
       end
 
+      # Append execute code
       if code != ''
         execute_code << code
         execute_code << "\n"
@@ -1229,12 +1230,13 @@ loop do
         execute_code = ''
         indent_ct = 0
         current_row = 1
+        need_full_redraw = true
+
         $cursor_line_index = nil
         $cursor_col = nil
         $saved_new_line = ''
         $saved_new_indent = 0
         $scroll_start = 0
-        need_full_redraw = true
       end
 
     elsif SPECIAL_KEY_CHARS[key_event]
@@ -1348,9 +1350,11 @@ loop do
         if code_lines.length > 0
           old_scroll = $scroll_start
           visual_col = visual_column(indent_ct, code.length)
+
           $saved_new_line = code
           $saved_new_indent = indent_ct
           $cursor_line_index = code_lines.length - 1
+
           new_line = code_lines[$cursor_line_index]
           adjust_cursor_col(visual_col, new_line[:indent], new_line[:text].length)
           new_scroll = adjust_scroll($cursor_line_index, code_lines.length)
@@ -1362,9 +1366,11 @@ loop do
             draw_line_at($cursor_line_index, true, code_lines, $scroll_start)
             draw_new_line_at($saved_new_line, $saved_new_indent, current_row, code_lines.length, false)
           end
+
           clear_completion_box
           draw_status('--NORMAL--', $cursor_line_index + 1)
         end
+
       elsif $cursor_line_index > 0
         need_full_redraw = move_cursor_between_lines($cursor_line_index - 1, code_lines)
         draw_status('--NORMAL--', $cursor_line_index + 1)
@@ -1399,15 +1405,18 @@ loop do
           # Do nothing if at end
         elsif $cursor_col.is_a?(Integer) && $cursor_col < current_text.length
           $cursor_col += 1
+
           if $cursor_col >= current_text.length
             $cursor_col = nil
           end
+
           need_line_redraw = true
         end
       elsif result
         # Scroll result only when no code exists
         res_str = result.to_s
         check_offset = result_offset + 8
+
         if res_str.length >= check_offset
           result_offset += 8
           need_result_redraw = true
@@ -1419,20 +1428,24 @@ loop do
       if has_code
         # Move cursor left
         current_text = $cursor_line_index.nil? ? code : code_lines[$cursor_line_index][:text]
+
         if $cursor_col.nil?
           $cursor_col = current_text.length - 1 if current_text.length > 0
         elsif $cursor_col > 0
           $cursor_col -= 1
         end
+
         need_line_redraw = true
       elsif result
         # Scroll result only when no code exists
         check_offset = result_offset - 8
+
         if check_offset >= 0
           result_offset = check_offset
         else
           result_offset = 0
         end
+
         need_result_redraw = true
       end
     end
