@@ -711,17 +711,15 @@ def move_cursor_to_new_line(code_lines, current_row)
   adjust_cursor_col(visual_col, indent_ct, code.length)
   new_scroll = adjust_scroll(nil, code_lines.length)
 
-  need_full_redraw = false
-
   if old_scroll != new_scroll
     $scroll_start = new_scroll
-    need_full_redraw = true
+    [code, indent_ct, true]
   else
     draw_line_at(old_index, false, code_lines, $scroll_start)
     draw_new_line_at(code, indent_ct, current_row, code_lines.length, true)
-  end
 
-  [code, indent_ct, need_full_redraw]
+    [code, indent_ct, false]
+  end
 end
 
 # ti-doc: Draw current line only
