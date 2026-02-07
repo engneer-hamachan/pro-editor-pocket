@@ -1,0 +1,21 @@
+idf_component_register(
+    SRCS
+        "ports/esp32/sdcard_driver.c"
+        "ports/esp32/sdcard_native.c"
+    INCLUDE_DIRS
+        "include"
+        "ports/esp32"
+        "../picoruby-esp32/picoruby/include"
+        "../picoruby-esp32/picoruby/mrbgems/picoruby-mrubyc/lib/mrubyc/src"
+        "../picoruby-esp32/picoruby/mrbgems/picoruby-machine/include"
+    PRIV_REQUIRES
+        driver
+        sdmmc
+        esp_driver_sdspi
+        picoruby-esp32
+)
+
+add_definitions(
+    -DPICORB_VM_MRUBYC
+    -DESP32_PLATFORM
+)

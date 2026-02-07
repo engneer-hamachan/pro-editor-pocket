@@ -3,21 +3,25 @@ require 'i2c'
 require 'gpio'
 require 'adc'
 require 'tft'
+require 'sdcard'
 
+#############################################################################
+#                              Init Constants                               #
+#############################################################################
+
+# Boot
 GPIO.pull_up_at 10
 boot = GPIO.new(10, GPIO::OUT)
 boot.write 1
 
 sleep_ms 500
 
-# track ball
+# Trackball
 left = GPIO.new(1, GPIO::IN)
 right = GPIO.new(2, GPIO::IN) 
 up = GPIO.new(3, GPIO::IN) 
 down = GPIO.new(15, GPIO::IN) 
-click = GPIO.new(0, GPIO::IN) 
 
-# Internal constants to ignore in completion
 INTERNAL_CONSTANTS = [
   'HIGHLIGHT_KEYWORDS',
   'INDENT_INCREASE',
@@ -107,6 +111,319 @@ INDENT_INCREASE = [
 
 INDENT_DECREASE = ['end', 'else', 'elsif', 'when']
 
+# Special key-event codes mapped to characters
+SPECIAL_KEY_CHARS = {
+  15  => '[',
+  26  => ']',
+  31  => '{',
+  1   => '}',
+  23  => '<',
+  24  => '>',
+  3   => '=',
+  224 => '|'
+}
+
+#############################################################################
+#                               Save & Load                                 #
+#############################################################################
+$slot_modal_mode = nil  # nil, :save, :load
+$slot_selected = 0
+
+# ti-doc: Draw slot selection modal
+def draw_slot_modal(mode)
+  # Modal background
+  box_x = 80
+  box_y = 50
+  box_w = 160
+  box_h = 120
+
+  TFT.fill_rect(box_x + 2, box_y + 2, box_w, box_h, 0x000000)
+  TFT.fill_rect(box_x, box_y, box_w, box_h, 0x252526)
+  TFT.draw_rect(box_x, box_y, box_w, box_h, 0x007ACC)
+
+  title = mode == :save ? 'Save to Slot' : 'Load from Slot'
+  title_x = box_x + (box_w - title.length * 6) / 2
+  draw_text(title, title_x, box_y + 6, 0xD4D4D4)
+
+  TFT.draw_fast_h_line(box_x + 1, box_y + 18, box_w - 2, 0x303030)
+
+  8.times do |i|
+    col = i % 2
+    row = i / 2
+    slot_x = box_x + 10 + col * 75
+    slot_y = box_y + 24 + row * 22
+
+    if i == $slot_selected
+      TFT.fill_rect(slot_x - 2, slot_y - 2, 70, 18, 0x094771)
+    end
+
+    label = "SLOT #{i}"
+    draw_text(label, slot_x, slot_y, 0xD4D4D4)
+  end
+
+  inst = 'Ball:Select Return:OK'
+  inst_x = box_x + (box_w - inst.length * 6) / 2
+  draw_text(inst, inst_x, box_y + box_h - 12, 0x6E6E6E)
+end
+
+# ti-doc: Close slot modal and restore screen
+def close_slot_modal
+  $slot_modal_mode = nil
+  $slot_selected = 0
+end
+
+#############################################################################
+#                               Completion                                  #
+#############################################################################
+
+$dict = {}
+$completion_chars = nil
+$completion_candidates = []
+$completion_index = 0
+$draw_completion_box_y = CODE_AREA_Y_START
+$completion_box_visible = false
+
+# ti-doc: Load constants for completion
+def load_constants
+  Object.constants.each do |constant|
+    constant_str = constant.to_s
+
+    if INTERNAL_CONSTANTS.include?(constant_str) || constant_str.index('Error') != nil
+      next
+    end
+
+    $dict[constant_str] = true
+  end
+end
+
+# ti-doc: Clear completion box area
+def clear_completion_box
+  return unless $completion_box_visible
+
+  box_x = 220
+  box_y = $draw_completion_box_y
+  box_w = 100
+  box_h = 6 * 10 + 20
+  max_h = CODE_AREA_Y_END - box_y
+
+  if box_h > max_h
+    box_h = max_h
+  end
+
+  TFT.fill_rect(box_x, box_y, box_w, box_h, 0x070707)
+  $completion_box_visible = false
+end
+
+# ti-doc: Draw completion and set $completion_chars
+def draw_completion(current_code, code_lines_count)
+  $completion_chars = nil
+  $completion_candidates = []
+
+  clear_completion_box
+
+  return if current_code == ''
+
+  tokens = tokenize(current_code)
+  target = tokens.last
+
+  return if target.nil? || target == '' || target == ' '
+
+  candidates = []
+
+  $dict.keys.each do |key|
+    if key.length > target.length && key[0, target.length] == target
+      candidates << key
+    end
+  end
+
+  return if candidates.length == 0
+
+  candidates = candidates[0, 6]
+  candidates << '(skip)'
+  $completion_candidates = candidates
+
+  if $completion_index >= candidates.length
+    $completion_index = 0
+  end
+
+  # Set completion chars (nil for skip option)
+  if $completion_index == candidates.length - 1
+    $completion_chars = nil
+  else
+    selected = candidates[$completion_index]
+    $completion_chars = selected[target.length, selected.length]
+  end
+
+  box_x = 222
+  box_y = CODE_AREA_Y_START + 2 + (code_lines_count * 10 + 10)
+
+  if (box_y + 70) >= 207
+    box_y = 116
+  end
+
+  box_w = 96
+  box_h = candidates.length * 10 + 4
+
+  $draw_completion_box_y = box_y
+  $completion_box_visible = true
+
+  TFT.fill_rect(box_x + 1, box_y + 1, box_w, box_h, 0x000000)
+  TFT.fill_rect(box_x, box_y, box_w, box_h, 0x252526)
+  TFT.draw_rect(box_x, box_y, box_w, box_h, 0x303030)
+
+  highlight_y = box_y + 1 + $completion_index * 10
+  TFT.fill_rect(box_x + 1, highlight_y, box_w - 2, 10, 0x094771)
+
+  candidates.each_with_index do |candidate, idx|
+    y = box_y + 2 + idx * 10
+
+    if candidate == '(skip)'
+      draw_text(candidate, box_x + 2, y, 0x6E6E6E)
+    else
+      disp_name = candidate.length > 14 ? candidate[0, 13] + '..' : candidate
+      color = (candidate[0] >= 'A' && candidate[0] <= 'Z') ? 0x4EC9B0 : 0xFFFCDA
+      draw_text(disp_name, box_x + 2, y, color)
+    end
+  end
+end
+
+
+#############################################################################
+#                               Scroll                                      #
+#############################################################################
+# nil=new line, 0..n=code_lines[n]
+$cursor_line_index = nil  
+# nil=column end, 0..n=current column
+$cursor_col = nil         
+
+$saved_new_line = ''
+$saved_new_indent = 0
+$scroll_start = 0
+
+# ti-doc: Draw newline without scroll (prev line + new line)
+def draw_newline_no_scroll(prev_line, current_code, indent_ct, current_row, code_lines_count)
+  prev_y = current_line_y(code_lines_count - 1)
+  prev_row = current_row - 1
+
+  TFT.fill_rect(0, prev_y, 320, 10, 0x070707)
+  line_number = prev_row > 9 ? 1 : 2
+
+  TFT.fill_rect(0, prev_y, 34, 10, 0x070707)
+  TFT.draw_fast_v_line(28, prev_y - 2, 10, 0x303030)
+
+  draw_text("#{' ' * line_number}#{prev_row}", 0, prev_y, 0x6E6E6E)
+  draw_code_highlighted("#{'  ' * prev_line[:indent]}#{prev_line[:text]}", 38, prev_y)
+
+  y = current_line_y(code_lines_count)
+
+  return if y > CODE_AREA_Y_END - 10
+
+  line_number = current_row > 9 ? 1 : 2
+
+  TFT.draw_fast_v_line(28, y - 2, 10, 0x303030)
+
+  draw_text("#{' ' * line_number}#{current_row}", 0, y, 0xD4D4D4)
+  code_display = "#{'  ' * indent_ct}#{current_code}"
+  draw_code_highlighted(code_display, 38, y)
+  draw_text('_', 38 + code_display.length * 6, y, 0x007ACC)
+
+  draw_completion(current_code, code_lines_count)
+end
+
+# ti-doc: Adjust scroll to ensure cursor is visible
+def adjust_scroll(cursor_line_index, code_lines_count, max_visible = 16)
+  total_lines = code_lines_count + 1
+
+  cursor_pos = 
+    if cursor_line_index.is_a?(NilClass) 
+      code_lines_count 
+    else 
+      cursor_line_index
+    end
+
+  max_scroll = [0, total_lines - max_visible].max
+  scroll = [0, [$scroll_start, max_scroll].min].max
+
+  if cursor_pos < scroll
+    scroll = cursor_pos
+  end
+
+  if cursor_pos >= scroll + max_visible
+    scroll = cursor_pos - max_visible + 1
+  end
+
+  scroll
+end
+
+# ti-doc: Draw a single line at given index (for cursor navigation)
+def draw_line_at(line_index, is_active, code_lines, scroll_start)
+  line_index = line_index.to_i
+
+  return if line_index < scroll_start
+
+  visible_offset = line_index - scroll_start
+
+  return if visible_offset >= 16
+
+  y = CODE_AREA_Y_START + visible_offset * 10
+
+  return if y > CODE_AREA_Y_END - 10
+
+  line = code_lines[line_index]
+  ln = line_index + 1
+
+  TFT.fill_rect(0, y, 320, 10, 0x070707)
+  TFT.draw_fast_v_line(28, y - 2, 10, 0x303030)
+
+  line_number_padding = ln > 9 ? 1 : 2
+  ln_color = is_active ? 0xD4D4D4 : 0x6E6E6E
+  draw_text("#{' ' * line_number_padding}#{ln}", 0, y, ln_color)
+
+  code_display = "#{'  ' * line[:indent]}#{line[:text]}"
+  draw_code_highlighted(code_display, 38, y)
+
+  if is_active
+    cursor_x = 
+      if $cursor_col.is_a?(NilClass)
+        38 + code_display.length * 6
+      else
+        38 + (2 * line[:indent] + $cursor_col) * 6
+      end
+    draw_text('_', cursor_x, y, 0x007ACC)
+  end
+end
+
+# ti-doc: Draw the new/incomplete line (for cursor navigation)
+def draw_new_line_at(current_code, indent_ct, current_row, code_lines_count, is_active)
+  y = current_line_y(code_lines_count)
+  return if y > CODE_AREA_Y_END - 10
+
+  TFT.fill_rect(0, y, 320, 10, 0x070707)
+  TFT.draw_fast_v_line(28, y - 2, 10, 0x303030)
+
+  line_number_padding = current_row > 9 ? 1 : 2
+  ln_color = is_active ? 0xD4D4D4 : 0x6E6E6E
+  draw_text("#{' ' * line_number_padding}#{current_row}", 0, y, ln_color)
+
+  code_display = "#{'  ' * indent_ct}#{current_code}"
+  draw_code_highlighted(code_display, 38, y)
+
+  if is_active
+    cursor_x = 
+      if $cursor_col.is_a?(NilClass)
+        38 + code_display.length * 6
+      else
+        38 + (2 * indent_ct + $cursor_col) * 6
+      end
+
+    draw_text('_', cursor_x, y, 0x007ACC)
+  end
+end
+
+#############################################################################
+#                               Common Draw                                 #
+#############################################################################
+
 # ti-doc: Check if string is a number
 def is_number?(str)
   return false if str == '' || str.nil?
@@ -115,7 +432,7 @@ def is_number?(str)
   end
   true
 end
-
+ 
 # ti-doc: Tokenize code
 def tokenize(code)
   tokens = []
@@ -155,6 +472,7 @@ def tokenize(code)
       current_token << c
     end
   end
+
   tokens << current_token if current_token != ''
   tokens
 end
@@ -246,14 +564,14 @@ def draw_ruby_icon(x, y, c = 0xCC342D)
 end
 
 # ti-doc: Draw Static UI frame
-def draw_ui
+def draw_ui file_name
   # Tab bar background (full width)
   TFT.fill_rect(0, 0, 320, 22, 0x2D2D2D)
 
   icon_width = 12
 
   # Start Active tab (calc.rb)
-  tab_text = 'app.rb'
+  tab_text = file_name
   tab_width = (tab_text.length * 6) + 42
 
   # Active tab background (same as editor bg)
@@ -303,10 +621,105 @@ end
 
 # ti-doc: Calculate current line Y position
 def current_line_y(code_lines_count)
-  max_visible = 16
-  start_line = [0, code_lines_count - max_visible + 1].max
-  visible_lines = code_lines_count - start_line
-  CODE_AREA_Y_START + visible_lines * 10
+  visible_offset = code_lines_count - $scroll_start
+  CODE_AREA_Y_START + visible_offset * 10
+end
+
+# ti-doc: Insert a character at the current cursor position
+def insert_char_at_cursor(code, char, code_lines)
+  if $cursor_line_index.nil?
+    if $cursor_col.nil?
+      code << char
+    else
+      code = code[0...$cursor_col] + char + code[$cursor_col..]
+      $cursor_col += 1
+    end
+  else
+    text = code_lines[$cursor_line_index][:text]
+    if $cursor_col.nil?
+      code_lines[$cursor_line_index][:text] << char
+    else
+      code_lines[$cursor_line_index][:text] = text[0...$cursor_col] + char + text[$cursor_col..]
+      $cursor_col += 1
+    end
+  end
+  code
+end
+
+# ti-doc: Compute visual column position for the current cursor
+def visual_column(indent, text_length)
+  indent * 2 + ($cursor_col.nil? ? text_length : $cursor_col)
+end
+
+# ti-doc: Adjust $cursor_col to maintain visual position when moving between lines
+def adjust_cursor_col(visual_col, target_indent, target_text_length)
+  new_cursor = visual_col.to_i - target_indent * 2
+
+  if new_cursor < 0
+    $cursor_col = 0
+  elsif new_cursor >= target_text_length
+    $cursor_col = nil
+  else
+    $cursor_col = new_cursor
+  end
+end
+
+# ti-doc: Mark all trackball directions as consumed (debounce)
+def debounce_track
+  $up_pressed = true
+  $down_pressed = true
+  $left_pressed = true
+  $right_pressed = true
+end
+
+# ti-doc: Move cursor from one code_line to another code_line
+def move_cursor_between_lines(target_index, code_lines)
+  old_scroll = $scroll_start
+  old_index = $cursor_line_index
+  old_line = code_lines[old_index]
+
+  visual_col = visual_column(old_line[:indent], old_line[:text].length)
+  $cursor_line_index = target_index
+
+  new_line = code_lines[target_index]
+
+  adjust_cursor_col(visual_col, new_line[:indent], new_line[:text].length)
+
+  new_scroll = adjust_scroll(target_index, code_lines.length)
+
+  if old_scroll != new_scroll
+    $scroll_start = new_scroll
+    true
+  else
+    draw_line_at(old_index, false, code_lines, $scroll_start)
+    draw_line_at(target_index, true, code_lines, $scroll_start)
+    false
+  end
+end
+
+# ti-doc: Move cursor from last code_line to the new/input line
+def move_cursor_to_new_line(code_lines, current_row)
+  old_scroll = $scroll_start
+  old_index = $cursor_line_index
+  old_line = code_lines[old_index]
+  visual_col = visual_column(old_line[:indent], old_line[:text].length)
+
+  $cursor_line_index = nil
+
+  code = $saved_new_line
+  indent_ct = $saved_new_indent
+  adjust_cursor_col(visual_col, indent_ct, code.length)
+  new_scroll = adjust_scroll(nil, code_lines.length)
+
+  if old_scroll != new_scroll
+    $scroll_start = new_scroll
+    [code, indent_ct, true]
+  else
+    draw_line_at(old_index, false, code_lines, $scroll_start)
+    draw_new_line_at(code, indent_ct, current_row, code_lines.length, true)
+
+    [code, indent_ct, false]
+  end
 end
 
 # ti-doc: Draw current line only
@@ -322,7 +735,15 @@ def draw_current_line(current_code, indent_ct, current_row, code_lines_count)
 
   code_display = "#{'  ' * indent_ct}#{current_code}"
   draw_code_highlighted(code_display, 38, y)
-  draw_text('_', 38 + code_display.length * 6, y, 0xD4D4D4)
+
+  cursor_x = 
+    if $cursor_col.is_a?(NilClass)
+      38 + code_display.length * 6
+    else
+      38 + (2 * indent_ct + $cursor_col) * 6
+    end
+
+  draw_text('_', cursor_x, y, 0x007ACC)
 
   draw_completion(current_code, code_lines_count)
 end
@@ -338,31 +759,60 @@ def draw_code_area(code_lines, current_code, indent_ct, current_row)
 
   max_visible = 16
   total = code_lines.length
-  start_line = [0, total - max_visible + 1].max
+  # Use global scroll_start for consistent scrolling
+  start_line = $scroll_start
+  end_line = [total, start_line + max_visible].min
   y = CODE_AREA_Y_START
 
   # Draw history lines
-  (start_line...total).each do |i|
+  (start_line...end_line).each do |i|
     line = code_lines[i]
     ln = i + 1
     line_number = ln > 9 ? 1 : 2
 
+    is_active = ($cursor_line_index == i)
+    ln_color = is_active ? 0xD4D4D4 : 0x6E6E6E
+
     TFT.fill_rect(0, y, 34, 10, 0x070707)
     TFT.draw_fast_v_line(28, y - 2, 10, 0x303030)
-    draw_text("#{' ' * line_number}#{ln}", 0, y, 0x6E6E6E)
-    draw_code_highlighted("#{'  ' * line[:indent]}#{line[:text]}", 38, y)
+    draw_text("#{' ' * line_number}#{ln}", 0, y, ln_color)
+    code_display = "#{'  ' * line[:indent]}#{line[:text]}"
+    draw_code_highlighted(code_display, 38, y)
+
+    if is_active
+      cursor_x = 
+        if $cursor_col.is_a?(NilClass)
+          38 + code_display.length * 6
+        else
+          38 + (2 * line[:indent] + $cursor_col) * 6
+        end
+
+      draw_text('_', cursor_x, y, 0x007ACC)
+    end
     y += 10
   end
 
-  # Draw current line
+  # Draw current/new line
   if y <= CODE_AREA_Y_END - 10
     line_number = current_row > 9 ? 1 : 2
-    
+    is_new_line_active = $cursor_line_index.nil?
+    ln_color = is_new_line_active ? 0xD4D4D4 : 0x6E6E6E
+
     TFT.draw_fast_v_line(28, y - 2, 10, 0x303030)
-    draw_text("#{' ' * line_number}#{current_row}", 0, y, 0xD4D4D4)
+    draw_text("#{' ' * line_number}#{current_row}", 0, y, ln_color)
     code_display = "#{'  ' * indent_ct}#{current_code}"
     draw_code_highlighted(code_display, 38, y)
-    draw_text('_', 38 + code_display.length * 6, y, 0xD4D4D4)
+
+    if is_new_line_active
+      cursor_x = 
+        if $cursor_col.is_a?(NilClass)
+          38 + code_display.length * 6
+        else
+          38 + (2 * indent_ct + $cursor_col) * 6
+        end
+
+      draw_text('_', cursor_x, y, 0x007ACC)
+    end
   end
 
   code_lines.each do |line|
@@ -429,151 +879,36 @@ def draw_status(msg, line_num = nil)
   draw_text(right_text, right_x, 230, 0xFFFFFF)
 end
 
+#############################################################################
+#                                 Welcome                                   #
+#############################################################################
+
+draw_text 'Pro Editor Pocket For Picoruby', 70, 110, 0xFFFFFF
+draw_text 'Press return to start', 100, 135, 0x555555
+draw_ruby_icon 252, 108
+
+loop do
+  key_event = 0
+
+  begin
+    data = KEYBOARD_I2C.read(KEYBOARD_I2C_ADDR, 1)
+    key_event = data.ord if data && data.length > 0
+  rescue
+    # nop
+  end
+
+  if key_event == 13
+    break
+  end
+end
+
+#############################################################################
+#                               Start Main loop                             #
+#############################################################################
+
 # Initial draw
-draw_ui
+draw_ui 'app.rb'
 draw_status('--NORMAL--', 1)
-
-# Completion
-$dict = {}
-$completion_chars = nil
-$completion_candidates = []
-$completion_index = 0
-$draw_completion_box_y = CODE_AREA_Y_START
-$completion_box_visible = false
-
-# ti-doc: Load constants for completion
-def load_constants
-  Object.constants.each do |constant|
-    constant_str = constant.to_s
-
-    if INTERNAL_CONSTANTS.include?(constant_str) || constant_str.index('Error') != nil
-      next
-    end
-
-    $dict[constant_str] = true
-  end
-end
-
-# ti-doc: Clear completion box area
-def clear_completion_box
-  return unless $completion_box_visible
-
-  box_x = 220
-  box_y = $draw_completion_box_y
-  box_w = 100
-  box_h = 6 * 10 + 20
-  max_h = CODE_AREA_Y_END - box_y
-  if box_h > max_h
-    box_h = max_h
-  end
-  TFT.fill_rect(box_x, box_y, box_w, box_h, 0x070707)
-  $completion_box_visible = false
-end
-
-# ti-doc: Draw completion and set $completion_chars
-def draw_completion(current_code, code_lines_count)
-  $completion_chars = nil
-  $completion_candidates = []
-  clear_completion_box
-  return if current_code == ''
-
-  tokens = tokenize(current_code)
-  target = tokens.last
-  return if target.nil? || target == '' || target == ' '
-
-  candidates = []
-  $dict.keys.each do |key|
-    if key.length > target.length && key[0, target.length] == target
-      candidates << key
-    end
-  end
-
-  return if candidates.length == 0
-
-  candidates = candidates[0, 6]
-  candidates << '(skip)'
-  $completion_candidates = candidates
-
-  # Reset index if out of bounds
-  if $completion_index >= candidates.length
-    $completion_index = 0
-  end
-
-  # Set completion chars (nil for skip option)
-  if $completion_index == candidates.length - 1
-    $completion_chars = nil
-  else
-    selected = candidates[$completion_index]
-    $completion_chars = selected[target.length, selected.length]
-  end
-
-  # Draw completion box
-  box_x = 222
-  box_y = CODE_AREA_Y_START + 2 + (code_lines_count * 10 + 10)
-  if (box_y + 70) >= 207
-    box_y = 116
-  end
-  box_w = 96
-  box_h = candidates.length * 10 + 4
-
-  $draw_completion_box_y = box_y
-  $completion_box_visible = true
-
-  # Shadow effect
-  TFT.fill_rect(box_x + 1, box_y + 1, box_w, box_h, 0x000000)
-
-  # Main background
-  TFT.fill_rect(box_x, box_y, box_w, box_h, 0x252526)
-
-  # Border
-  TFT.draw_rect(box_x, box_y, box_w, box_h, 0x303030)
-
-  # Selected candidate highlight
-  highlight_y = box_y + 1 + $completion_index * 10
-  TFT.fill_rect(box_x + 1, highlight_y, box_w - 2, 10, 0x094771)
-
-  # Draw candidates
-  candidates.each_with_index do |candidate, idx|
-    y = box_y + 2 + idx * 10
-
-    if candidate == '(skip)'
-      draw_text(candidate, box_x + 2, y, 0x6E6E6E)
-    else
-      disp_name = candidate.length > 14 ? candidate[0, 13] + '..' : candidate
-      color = (candidate[0] >= 'A' && candidate[0] <= 'Z') ? 0x4EC9B0 : 0xFFFCDA
-      draw_text(disp_name, box_x + 2, y, color)
-    end
-  end
-end
-
-# ti-doc: Draw newline without scroll (prev line + new line)
-def draw_newline_no_scroll(prev_line, current_code, indent_ct, current_row, code_lines_count)
-  prev_y = current_line_y(code_lines_count - 1)
-  prev_row = current_row - 1
-
-  TFT.fill_rect(0, prev_y, 320, 10, 0x070707)
-  line_number = prev_row > 9 ? 1 : 2
-
-  TFT.fill_rect(0, prev_y, 34, 10, 0x070707)
-  TFT.draw_fast_v_line(28, prev_y - 2, 10, 0x303030)
-
-  draw_text("#{' ' * line_number}#{prev_row}", 0, prev_y, 0x6E6E6E)
-  draw_code_highlighted("#{'  ' * prev_line[:indent]}#{prev_line[:text]}", 38, prev_y)
-
-  y = current_line_y(code_lines_count)
-  return if y > CODE_AREA_Y_END - 10
-
-  line_number = current_row > 9 ? 1 : 2
-
-  # Line number with highlight (current line)
-  TFT.draw_fast_v_line(28, y - 2, 10, 0x303030)
-  draw_text("#{' ' * line_number}#{current_row}", 0, y, 0xD4D4D4)
-  code_display = "#{'  ' * indent_ct}#{current_code}"
-  draw_code_highlighted(code_display, 38, y)
-  draw_text('_', 38 + code_display.length * 6, y, 0xD4D4D4)
-
-  draw_completion(current_code, code_lines_count)
-end
 
 # State for main loop
 code = ''
@@ -588,11 +923,10 @@ need_line_redraw = false
 need_newline_redraw = false
 need_result_redraw = false
 prev_line_for_newline = nil
-right_pressed = right.high?
-left_pressed = left.high?
-up_pressed = up.high?
-down_pressed = down.high?
-click_pressed = click.high?
+$right_pressed = right.high?
+$left_pressed = left.high?
+$up_pressed = up.high?
+$down_pressed = down.high?
 loop_counter = 0
 
 sandbox = Sandbox.new('')
@@ -608,6 +942,7 @@ loop do
     data = KEYBOARD_I2C.read(KEYBOARD_I2C_ADDR, 1)
     key_event = data.ord if data && data.length > 0
   rescue
+    # nop
   end
 
   if key_event > 0
@@ -619,6 +954,73 @@ loop do
 
     draw_status('--NORMAL--', current_row)
 
+    # Cancel slot modal with backspace
+    if $slot_modal_mode && key_event == 8
+      close_slot_modal
+      need_full_redraw = true
+      next
+    end
+
+    # Select slot with return key
+    if $slot_modal_mode && key_event == 13
+      slot = $slot_selected
+      mode = $slot_modal_mode
+      close_slot_modal
+
+      if mode == :save
+        full_code = ''
+
+        code_lines.each do |line|
+          full_code << "#{'  ' * line[:indent]}#{line[:text]}\n"
+        end
+        full_code << "#{'  ' * indent_ct}#{code}" if code != ''
+
+        save_result = SDCard.save(slot, full_code)
+
+        TFT.init
+        TFT.fill_screen(0x070707)
+        draw_ui 'slot' + slot.to_s + '.rb'
+
+        $last_status_line = nil
+        draw_status(save_result ? '--SAVED--' : '--FAILED--', current_row)
+      else
+        loaded = SDCard.load(slot)
+
+        TFT.init
+        TFT.fill_screen(0x070707)
+        draw_ui 'slot' + slot.to_s + '.rb'
+
+        if loaded
+          lines = loaded.split("\n")
+
+          code_lines = []
+
+          lines.each do |line|
+            stripped = line.lstrip
+            indent = (line.length - stripped.length) / 2
+            code_lines << {text: stripped, indent: indent}
+          end
+
+          code = ''
+          indent_ct = 0
+          current_row = code_lines.length + 1
+          execute_code = loaded + "\n"
+
+          $cursor_line_index = nil
+          $cursor_col = nil
+          $saved_new_line = ''
+          $saved_new_indent = 0
+          $scroll_start = adjust_scroll(nil, code_lines.length)
+        end
+
+        $last_status_line = nil
+        draw_status(loaded ? '--LOADED--' : '--FAILED--', current_row)
+      end
+
+      need_full_redraw = true
+      next
+    end
+
     # alt + c
     if key_event == 12
       code = ''
@@ -627,49 +1029,111 @@ loop do
       execute_code = ''
       current_row = 1
       need_full_redraw = true
+
+      $cursor_line_index = nil
+      $cursor_col = nil
+      $saved_new_line = ''
+      $saved_new_indent = 0
+      $scroll_start = 0
+
       next
 
     # backspace
     elsif key_event == 8
-      if code == '' && code_lines.length > 0
-        # Move cursor to prev line
-        prev_line = code_lines.pop
-        code = prev_line[:text]
-        indent_ct = prev_line[:indent]
-        current_row -= 1
+      if $cursor_line_index.nil?
+        # On Empty line
+        if code == '' && code_lines.length > 0
+          # Move cursor to prev line
+          prev_line = code_lines.pop
+          code = prev_line[:text]
+          indent_ct = prev_line[:indent]
+          current_row -= 1
 
-        # Delete last line
-        if execute_code.length > 0
-          lines = execute_code.split("\n")
-          lines.pop
-          execute_code = lines.length > 0 ? lines.join("\n") + "\n" : ''
+          # Delete last line
+          if execute_code.length > 0
+            lines = execute_code.split("\n")
+            lines.pop
+            execute_code = lines.length > 0 ? lines.join("\n") + "\n" : ''
+          end
+
+          # Adjust scroll after deleting line
+          $scroll_start = adjust_scroll(nil, code_lines.length)
+
+          $completion_index = 0
+          need_full_redraw = true
+
+        elsif code.length > 0
+          if $cursor_col.is_a?(NilClass)
+            code = code[0..-2]
+          elsif $cursor_col.is_a?(Integer) && $cursor_col > 0
+            code = code[0...$cursor_col-1] + code[$cursor_col..]
+            $cursor_col -= 1
+          end
+
+          $completion_index = 0
+          need_line_redraw = true
         end
 
-        $completion_index = 0
-        need_full_redraw = true
       else
-        code = code[0..-2]
-        $completion_index = 0
-        need_line_redraw = true
+        # On existing code_line
+        line = code_lines[$cursor_line_index]
+
+        if line[:text].length > 0
+          if $cursor_col.is_a?(NilClass)
+            line[:text] = line[:text][0..-2]
+          elsif $cursor_col.is_a?(Integer) && $cursor_col > 0
+            line[:text] = line[:text][0...$cursor_col-1] + line[:text][$cursor_col..]
+            $cursor_col -= 1
+          end
+
+          $completion_index = 0
+          need_line_redraw = true
+        end
       end
 
     # return
     elsif key_event == 13
       # Select completion candidate
       if $completion_chars.is_a?(String)
-        code << $completion_chars
+        if $cursor_line_index.nil?
+          code << $completion_chars
+        else
+          code_lines[$cursor_line_index][:text] << $completion_chars
+        end
+
+        $cursor_col = nil  # Move cursor to end of line
         $completion_index = 0
         $completion_chars = nil
+
         need_line_redraw = true
+
         next
+
       elsif $completion_candidates.length > 0
-        # Skip selected - just close completion modal
+        # Skip selected
         $completion_index = 0
         $completion_candidates = []
+
         clear_completion_box
+
         next
       end
 
+      # On existing line, move to next line
+      if $cursor_line_index.is_a?(Integer)
+        if $cursor_line_index < code_lines.length - 1
+          need_full_redraw = move_cursor_between_lines($cursor_line_index + 1, code_lines)
+          draw_status('--NORMAL--', $cursor_line_index + 1)
+        else
+          code, indent_ct, need_full_redraw = move_cursor_to_new_line(code_lines, current_row)
+          draw_completion(code, code_lines.length)
+          draw_status('--NORMAL--', current_row)
+        end
+
+        next
+      end
+
+      # Append execute code
       if code != ''
         execute_code << code
         execute_code << "\n"
@@ -701,16 +1165,27 @@ loop do
 
         code = ''
         current_row += 1
+        $cursor_col = nil
 
-        # Judgement redraw pattern for scroll
-        if code_lines.length >= 17
+        # Adjust scroll to show new line
+        old_scroll = $scroll_start
+        $scroll_start = adjust_scroll(nil, code_lines.length)
+
+        # Full redraw if scroll changed, otherwise just redraw 2 lines
+        if old_scroll != $scroll_start
           need_full_redraw = true
         else
           need_newline_redraw = true
         end
 
       # Execute code
-      elsif indent_ct == 0 && execute_code != ''
+      elsif indent_ct == 0 && code_lines.length > 0
+        # Rebuild execute_code from code_lines (in case lines were edited)
+        execute_code = ''
+        code_lines.each do |line|
+          execute_code << "#{'  ' * line[:indent]}#{line[:text]}\n"
+        end
+
         if sandbox.compile("_ = (#{execute_code})", remove_lv: true)
           sandbox.execute
           sandbox.wait(timeout: nil)
@@ -779,59 +1254,35 @@ loop do
         indent_ct = 0
         current_row = 1
         need_full_redraw = true
+
+        $cursor_line_index = nil
+        $cursor_col = nil
+        $saved_new_line = ''
+        $saved_new_indent = 0
+        $scroll_start = 0
       end
 
-    elsif key_event == 15
-      char = '['
-      code << char
+    elsif SPECIAL_KEY_CHARS[key_event]
+      code = insert_char_at_cursor(code, SPECIAL_KEY_CHARS[key_event], code_lines)
       $completion_index = 0
       need_line_redraw = true
 
-    elsif key_event == 26
-      char = ']'
-      code << char
-      $completion_index = 0
-      need_line_redraw = true
+    # SDCard save - open slot modal
+    elsif key_event == 20
+      $slot_modal_mode = :save
+      $slot_selected = 0
+      draw_slot_modal(:save)
+      next
 
-    elsif key_event == 31
-      char = '{'
-      code << char
-      $completion_index = 0
-      need_line_redraw = true
-
-    elsif key_event == 1
-      char = '}'
-      code << char
-      $completion_index = 0
-      need_line_redraw = true
-
-    elsif key_event == 23
-      char = '<'
-      code << char
-      $completion_index = 0
-      need_line_redraw = true
-
-    elsif key_event == 24
-      char = '>'
-      code << char
-      $completion_index = 0
-      need_line_redraw = true
-
-    elsif key_event == 3
-      char = '='
-      code << char
-      $completion_index = 0
-      need_line_redraw = true
-
-    elsif key_event == 224
-      char = '|'
-      code << char
-      $completion_index = 0
-      need_line_redraw = true
+    # SDCard load - open slot modal
+    elsif key_event == 2
+      $slot_modal_mode = :load
+      $slot_selected = 0
+      draw_slot_modal(:load)
+      next
 
     elsif key_event >= 32 && key_event < 127
-      char = key_event.chr
-      code << char
+      code = insert_char_at_cursor(code, key_event.chr, code_lines)
       $completion_index = 0
       need_line_redraw = true
     end
@@ -839,125 +1290,190 @@ loop do
 
   # Track ball (check every 5 loops)
   if loop_counter >= 5
-    if $completion_candidates.length == 0
-      down_pressed = true
-    end
-
     loop_counter = 0
 
     r_high = right.high?
     l_high = left.high?
     u_high = up.high?
     d_high = down.high?
-    c_high = click.high?
 
     # Debug: show trackball state
     # TFT.fill_rect(200, 4, 120, 14, 0x2D2D2D)
     # draw_text("U:#{u_high ? 1 : 0} D:#{d_high ? 1 : 0} R:#{r_high ? 1 : 0} L:#{l_high ? 1 : 0}", 202, 8, 0x6E6E6E)
 
     # Reset flags when released
-    right_pressed = false if !r_high
-    left_pressed = false if !l_high
-    up_pressed = false if !u_high
-    down_pressed = false if !d_high
-    click_pressed = false if !c_high
+    $right_pressed = false if !r_high
+    $left_pressed = false if !l_high
+    $up_pressed = false if !u_high
+    $down_pressed = false if !d_high
+
+    # Slot modal navigation
+    if $slot_modal_mode
+      if u_high && !$up_pressed
+        debounce_track
+
+        if $slot_selected >= 2
+          $slot_selected -= 2
+          draw_slot_modal($slot_modal_mode)
+        end
+      elsif d_high && !$down_pressed
+        debounce_track
+
+        if $slot_selected <= 5
+          $slot_selected += 2
+          draw_slot_modal($slot_modal_mode)
+        end
+      elsif l_high && !$left_pressed
+        debounce_track
+
+        if $slot_selected % 2 == 1
+          $slot_selected -= 1
+          draw_slot_modal($slot_modal_mode)
+        end
+      elsif r_high && !$right_pressed
+        debounce_track
+
+        if $slot_selected % 2 == 0
+          $slot_selected += 1
+          draw_slot_modal($slot_modal_mode)
+        end
+      end
+
+      next
+    end
 
     # Completion navigation
     if $completion_candidates.length > 0
-      if u_high && !up_pressed
-        up_pressed = true
-        down_pressed = true
-        left_pressed = true
-        right_pressed = true
-        click_pressed = true
+      if u_high && !$up_pressed
+        debounce_track
 
         if $completion_index > 0
           $completion_index -= 1
           need_line_redraw = true
         end
-        next
-      elsif d_high && !down_pressed
-        up_pressed = true
-        down_pressed = true
-        left_pressed = true
-        right_pressed = true
-        click_pressed = true
+      elsif d_high && !$down_pressed
+        debounce_track
 
         if $completion_index < $completion_candidates.length - 1
           $completion_index += 1
           need_line_redraw = true
         end
-        next
-      elsif $completion_chars.is_a?(String) && c_high && !click_pressed
-        up_pressed = true
-        down_pressed = true
-        left_pressed = true
-        right_pressed = true
-        click_pressed = true
+      end
 
-        code << $completion_chars
-        $completion_index = 0
-        $completion_chars = nil
-        need_line_redraw = true
-        next
+      next
+    end
 
-      elsif c_high && !click_pressed
-        up_pressed = true
-        down_pressed = true
-        left_pressed = true
-        right_pressed = true
-        click_pressed = true
+    # Vertical cursor navigation (when not in modal or completion)
+    if u_high && !$up_pressed
+      debounce_track
 
-        # Skip selected - just close completion modal
-        $completion_index = 0
-        $completion_candidates = []
-        clear_completion_box
-        next
+      # Move cursor up
+      if $cursor_line_index.nil?
+        # Currently on new line, move to last code_line
+        if code_lines.length > 0
+          old_scroll = $scroll_start
+          visual_col = visual_column(indent_ct, code.length)
+
+          $saved_new_line = code
+          $saved_new_indent = indent_ct
+          $cursor_line_index = code_lines.length - 1
+
+          new_line = code_lines[$cursor_line_index]
+          adjust_cursor_col(visual_col, new_line[:indent], new_line[:text].length)
+          new_scroll = adjust_scroll($cursor_line_index, code_lines.length)
+
+          if old_scroll != new_scroll
+            $scroll_start = new_scroll
+            need_full_redraw = true
+          else
+            draw_line_at($cursor_line_index, true, code_lines, $scroll_start)
+            draw_new_line_at($saved_new_line, $saved_new_indent, current_row, code_lines.length, false)
+          end
+
+          clear_completion_box
+          draw_status('--NORMAL--', $cursor_line_index + 1)
+        end
+
+      elsif $cursor_line_index > 0
+        need_full_redraw = move_cursor_between_lines($cursor_line_index - 1, code_lines)
+        draw_status('--NORMAL--', $cursor_line_index + 1)
+      end
+
+    elsif d_high && !$down_pressed
+      debounce_track
+
+      # Move cursor down
+      if $cursor_line_index.nil?
+        # Already on new line, can't go down
+      elsif $cursor_line_index < code_lines.length - 1
+        need_full_redraw = move_cursor_between_lines($cursor_line_index + 1, code_lines)
+        draw_status('--NORMAL--', $cursor_line_index + 1)
+      else
+        code, indent_ct, need_full_redraw = move_cursor_to_new_line(code_lines, current_row)
+        draw_completion(code, code_lines.length)
+        draw_status('--NORMAL--', current_row)
       end
     end
 
-    # Result scroll with left/right
-    if result && r_high && !right_pressed
-      up_pressed = true
-      down_pressed = true
-      left_pressed = true
-      right_pressed = true
-      click_pressed = true
+    # Left/Right trackball handling
+    has_code = !code_lines.empty? || !code.empty?
 
-      res_str = result.to_s
-      check_offset = result_offset + 8
-      if res_str.length >= check_offset
-        result_offset += 8
+    if r_high && !$right_pressed
+      debounce_track
+
+      if has_code
+        # Move cursor right
+        current_text = $cursor_line_index.nil? ? code : code_lines[$cursor_line_index][:text]
+        if $cursor_col.nil?
+          # Do nothing if at end
+        elsif $cursor_col.is_a?(Integer) && $cursor_col < current_text.length
+          $cursor_col += 1
+
+          if $cursor_col >= current_text.length
+            $cursor_col = nil
+          end
+
+          need_line_redraw = true
+        end
+      elsif result
+        # Scroll result only when no code exists
+        res_str = result.to_s
+        check_offset = result_offset + 8
+
+        if res_str.length >= check_offset
+          result_offset += 8
+          need_result_redraw = true
+        end
+      end
+    elsif l_high && !$left_pressed
+      debounce_track
+
+      if has_code
+        # Move cursor left
+        current_text = $cursor_line_index.nil? ? code : code_lines[$cursor_line_index][:text]
+
+        if $cursor_col.nil?
+          $cursor_col = current_text.length - 1 if current_text.length > 0
+        elsif $cursor_col > 0
+          $cursor_col -= 1
+        end
+
+        need_line_redraw = true
+      elsif result
+        # Scroll result only when no code exists
+        check_offset = result_offset - 8
+
+        if check_offset >= 0
+          result_offset = check_offset
+        else
+          result_offset = 0
+        end
+
         need_result_redraw = true
       end
-      next
-    elsif result && l_high && !left_pressed
-      up_pressed = true
-      down_pressed = true
-      left_pressed = true
-      right_pressed = true
-      click_pressed = true
-
-      check_offset = result_offset - 8
-      if check_offset >= 0
-        result_offset = check_offset
-      else
-        result_offset = 0
-      end
-
-      need_result_redraw = true
-      next
-    elsif result && c_high && !click_pressed
-      up_pressed = true
-      down_pressed = true
-      left_pressed = true
-      right_pressed = true
-      click_pressed = true
-
-      result_offset = 0
-      need_result_redraw = true
-      next
     end
+
+    next
   end
 
   # Redraw
@@ -970,7 +1486,11 @@ loop do
     draw_newline_no_scroll(prev_line_for_newline, code, indent_ct, current_row, code_lines.length)
     need_newline_redraw = false
   elsif need_line_redraw
-    draw_current_line(code, indent_ct, current_row, code_lines.length)
+    if $cursor_line_index.nil?
+      draw_current_line(code, indent_ct, current_row, code_lines.length)
+    else
+      draw_line_at($cursor_line_index, true, code_lines, $scroll_start)
+    end
     need_line_redraw = false
   end
 
