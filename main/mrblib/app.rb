@@ -892,6 +892,7 @@ loop do
 
   begin
     data = KEYBOARD_I2C.read(KEYBOARD_I2C_ADDR, 1)
+    sleep_ms 5
     key_event = data.ord if data && data.length > 0
   rescue
     # nop
@@ -940,6 +941,7 @@ loop do
   key_event = 0
   begin
     data = KEYBOARD_I2C.read(KEYBOARD_I2C_ADDR, 1)
+    sleep_ms 5
     key_event = data.ord if data && data.length > 0
   rescue
     # nop
@@ -1288,8 +1290,8 @@ loop do
     end
   end
 
-  # Track ball (check every 5 loops)
-  if loop_counter >= 5
+  # Track ball (check every 2 loops)
+  if loop_counter >= 2
     loop_counter = 0
 
     r_high = right.high?
