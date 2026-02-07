@@ -10,9 +10,6 @@ edit and execute PicoRuby code directly on your device 🚀
 📌 **This software is designed exclusively for the T-Deck Plus.**  
 It is not intended to run on other devices.
 
-This project is intended as an experimental and playful piece of software 🧪🎮  
-Features such as file saving or multi-file editing are not supported.
-
 ---
 
 ## Setup ⚙️
@@ -72,6 +69,8 @@ idf.py flash
 - Multi-line input with automatic indentation ↩️
 - Basic code completion 🧠
 - Press `Return` twice to execute the code ▶️
+- 8-slot Save / Load to SD Card 💾
+- Trackball cursor navigation in editor 🕹️
 ---
 
 ## Special Key Mapping ⌨️
@@ -95,14 +94,32 @@ then holding `Shift` while pressing the corresponding key.
 
 ## Special Controls 🕹️
 
-- Trackball Up / Down  
-  Select completion candidates
+### Trackball 🕹️
 
-- Trackball Left / Right  
-  Scroll the result area horizontally
+| Context | Direction | Action |
+|---------|-----------|--------|
+| Editor (normal) | Up / Down / Left / Right | Move cursor within code |
+| Completion popup | Up / Down | Select completion candidate |
+| Result area | Left / Right | Scroll horizontally |
+| Slot modal | Left / Right | Select slot (0–7) |
 
-- Alt + C  
-  Clear all currently entered code
+### Keyboard Shortcuts ⌨️
+
+| Shortcut | Action |
+|----------|--------|
+| Alt + C | Clear all currently entered code |
+| Sym → Shift + S | Open **Save** slot modal (SD Card) |
+| Sym → Shift + L | Open **Load** slot modal (SD Card) |
+| Return | Confirm selected slot in modal |
+| Backspace | Cancel slot modal |
+
+### SD Card Save / Load 💾
+
+Code can be saved to and loaded from 8 slots (`slot0.rb` – `slot7.rb`) on the SD Card.
+
+1. Press `Sym → Shift + S` (save) or `Sym → Shift + L` (load) to open the slot selection modal
+2. Use the trackball to choose a slot (0–7)
+3. Press `Return` to confirm, or `Backspace` to cancel
 
 ---
 
