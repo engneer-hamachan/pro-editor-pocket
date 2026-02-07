@@ -325,7 +325,7 @@ def draw_newline_no_scroll(prev_line, current_code, indent_ct, current_row, code
   draw_text("#{' ' * line_number}#{current_row}", 0, y, 0xD4D4D4)
   code_display = "#{'  ' * indent_ct}#{current_code}"
   draw_code_highlighted(code_display, 38, y)
-  draw_text('_', 38 + code_display.length * 6, y, 0xFFAA00)
+  draw_text('_', 38 + code_display.length * 6, y, 0x007ACC)
 
   draw_completion(current_code, code_lines_count)
 end
@@ -389,7 +389,7 @@ def draw_line_at(line_index, is_active, code_lines, scroll_start)
       else
         38 + (2 * line[:indent] + $cursor_col) * 6
       end
-    draw_text('_', cursor_x, y, 0xFFAA00)
+    draw_text('_', cursor_x, y, 0x007ACC)
   end
 end
 
@@ -416,7 +416,7 @@ def draw_new_line_at(current_code, indent_ct, current_row, code_lines_count, is_
         38 + (2 * indent_ct + $cursor_col) * 6
       end
 
-    draw_text('_', cursor_x, y, 0xFFAA00)
+    draw_text('_', cursor_x, y, 0x007ACC)
   end
 end
 
@@ -743,7 +743,7 @@ def draw_current_line(current_code, indent_ct, current_row, code_lines_count)
       38 + (2 * indent_ct + $cursor_col) * 6
     end
 
-  draw_text('_', cursor_x, y, 0xFFAA00)
+  draw_text('_', cursor_x, y, 0x007ACC)
 
   draw_completion(current_code, code_lines_count)
 end
@@ -787,7 +787,7 @@ def draw_code_area(code_lines, current_code, indent_ct, current_row)
           38 + (2 * line[:indent] + $cursor_col) * 6
         end
 
-      draw_text('_', cursor_x, y, 0xFFAA00)
+      draw_text('_', cursor_x, y, 0x007ACC)
     end
     y += 10
   end
@@ -811,7 +811,7 @@ def draw_code_area(code_lines, current_code, indent_ct, current_row)
           38 + (2 * indent_ct + $cursor_col) * 6
         end
 
-      draw_text('_', cursor_x, y, 0xFFAA00)
+      draw_text('_', cursor_x, y, 0x007ACC)
     end
   end
 
@@ -877,6 +877,29 @@ def draw_status(msg, line_num = nil)
   right_text = right_items.join('  ')
   right_x = 320 - (right_text.length * 6) - 4
   draw_text(right_text, right_x, 230, 0xFFFFFF)
+end
+
+#############################################################################
+#                                 Welcome                                   #
+#############################################################################
+
+draw_text 'Pro Editor Pocket For Picoruby', 70, 110, 0xFFFFFF
+draw_text 'Press return to start', 100, 135, 0x555555
+draw_ruby_icon 252, 108
+
+loop do
+  key_event = 0
+
+  begin
+    data = KEYBOARD_I2C.read(KEYBOARD_I2C_ADDR, 1)
+    key_event = data.ord if data && data.length > 0
+  rescue
+    # nop
+  end
+
+  if key_event == 13
+    break
+  end
 end
 
 #############################################################################
@@ -959,7 +982,7 @@ loop do
         draw_ui 'slot' + slot.to_s + '.rb'
 
         $last_status_line = nil
-        draw_status(save_result ? "SAVED" : 'FAILED', current_row)
+        draw_status(save_result ? '--SAVED--' : '--FAILED--', current_row)
       else
         loaded = SDCard.load(slot)
 
@@ -991,7 +1014,7 @@ loop do
         end
 
         $last_status_line = nil
-        draw_status(loaded ? "lOADED" : 'FAILED', current_row)
+        draw_status(loaded ? '--LOADED--' : '--FAILED--', current_row)
       end
 
       need_full_redraw = true
