@@ -335,7 +335,7 @@ def adjust_scroll(cursor_line_index, code_lines_count, max_visible = 16)
   total_lines = code_lines_count + 1
 
   cursor_pos = 
-    if cursor_line_index.is_a?(NilClass) 
+    if cursor_line_index.nil?
       code_lines_count 
     else 
       cursor_line_index
@@ -384,7 +384,7 @@ def draw_line_at(line_index, is_active, code_lines, scroll_start)
 
   if is_active
     cursor_x = 
-      if $cursor_col.is_a?(NilClass)
+      if $cursor_col.nil?
         38 + code_display.length * 6
       else
         38 + (2 * line[:indent] + $cursor_col) * 6
@@ -410,7 +410,7 @@ def draw_new_line_at(current_code, indent_ct, current_row, code_lines_count, is_
 
   if is_active
     cursor_x = 
-      if $cursor_col.is_a?(NilClass)
+      if $cursor_col.nil?
         38 + code_display.length * 6
       else
         38 + (2 * indent_ct + $cursor_col) * 6
@@ -737,7 +737,7 @@ def draw_current_line(current_code, indent_ct, current_row, code_lines_count)
   draw_code_highlighted(code_display, 38, y)
 
   cursor_x = 
-    if $cursor_col.is_a?(NilClass)
+    if $cursor_col.nil?
       38 + code_display.length * 6
     else
       38 + (2 * indent_ct + $cursor_col) * 6
@@ -781,7 +781,7 @@ def draw_code_area(code_lines, current_code, indent_ct, current_row)
 
     if is_active
       cursor_x = 
-        if $cursor_col.is_a?(NilClass)
+        if $cursor_col.nil?
           38 + code_display.length * 6
         else
           38 + (2 * line[:indent] + $cursor_col) * 6
@@ -805,7 +805,7 @@ def draw_code_area(code_lines, current_code, indent_ct, current_row)
 
     if is_new_line_active
       cursor_x = 
-        if $cursor_col.is_a?(NilClass)
+        if $cursor_col.nil?
           38 + code_display.length * 6
         else
           38 + (2 * indent_ct + $cursor_col) * 6
@@ -1063,7 +1063,7 @@ loop do
           need_full_redraw = true
 
         elsif code.length > 0
-          if $cursor_col.is_a?(NilClass)
+          if $cursor_col.nil?
             code = code[0..-2]
           elsif $cursor_col.is_a?(Integer) && $cursor_col > 0
             code = code[0...$cursor_col-1] + code[$cursor_col..]
@@ -1079,7 +1079,7 @@ loop do
         line = code_lines[$cursor_line_index]
 
         if line[:text].length > 0
-          if $cursor_col.is_a?(NilClass)
+          if $cursor_col.nil?
             line[:text] = line[:text][0..-2]
           elsif $cursor_col.is_a?(Integer) && $cursor_col > 0
             line[:text] = line[:text][0...$cursor_col-1] + line[:text][$cursor_col..]
@@ -1405,7 +1405,7 @@ loop do
       # Move cursor down
       if $cursor_line_index.nil?
         # Already on new line, can't go down
-      elsif $cursor_line_index < code_lines.length - 1
+      elsif $cursor_line_index.is_a?(Integer) && $cursor_line_index < code_lines.length - 1
         need_full_redraw = move_cursor_between_lines($cursor_line_index + 1, code_lines)
         draw_status('--NORMAL--', $cursor_line_index + 1)
       else
