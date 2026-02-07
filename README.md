@@ -101,7 +101,7 @@ then holding `Shift` while pressing the corresponding key.
 | Editor (normal) | Up / Down / Left / Right | Move cursor within code |
 | Completion popup | Up / Down | Select completion candidate |
 | Result area | Left / Right | Scroll horizontally |
-| Slot modal | Left / Right | Select slot (0–7) |
+| Slot modal | Up / Down / Left / Right | Select slot (0–7) |
 
 ### Keyboard Shortcuts ⌨️
 
