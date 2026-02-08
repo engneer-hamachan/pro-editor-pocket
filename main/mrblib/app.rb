@@ -1067,7 +1067,7 @@ loop do
         elsif code.length > 0
           if $cursor_col.nil?
             code = code[0..-2]
-          elsif $cursor_col.is_a?(Integer) && $cursor_col > 0
+          elsif $cursor_col > 0
             code = code[0...$cursor_col-1] + code[$cursor_col..]
             $cursor_col -= 1
           end
@@ -1083,7 +1083,7 @@ loop do
         if line[:text].length > 0
           if $cursor_col.nil?
             line[:text] = line[:text][0..-2]
-          elsif $cursor_col.is_a?(Integer) && $cursor_col > 0
+          elsif $cursor_col > 0
             line[:text] = line[:text][0...$cursor_col-1] + line[:text][$cursor_col..]
             $cursor_col -= 1
           end
@@ -1407,8 +1407,9 @@ loop do
       # Move cursor down
       if $cursor_line_index.nil?
         # Already on new line, can't go down
-      elsif $cursor_line_index.is_a?(Integer) && $cursor_line_index < code_lines.length - 1
-        need_full_redraw = move_cursor_between_lines($cursor_line_index + 1, code_lines)
+      elsif $cursor_line_index < code_lines.length - 1
+        target_line = $cursor_line_index + 1
+        need_full_redraw = move_cursor_between_lines(target_line, code_lines)
         draw_status('--NORMAL--', $cursor_line_index + 1)
       else
         code, indent_ct, need_full_redraw = move_cursor_to_new_line(code_lines, current_row)
@@ -1428,7 +1429,7 @@ loop do
         current_text = $cursor_line_index.nil? ? code : code_lines[$cursor_line_index][:text]
         if $cursor_col.nil?
           # Do nothing if at end
-        elsif $cursor_col.is_a?(Integer) && $cursor_col < current_text.length
+        elsif $cursor_col < current_text.length
           $cursor_col += 1
 
           if $cursor_col >= current_text.length
