@@ -1408,8 +1408,7 @@ loop do
       if $cursor_line_index.nil?
         # Already on new line, can't go down
       elsif $cursor_line_index < code_lines.length - 1
-        target_line = $cursor_line_index + 1
-        need_full_redraw = move_cursor_between_lines(target_line, code_lines)
+        need_full_redraw = move_cursor_between_lines($cursor_line_index.to_i + 1, code_lines)
         draw_status('--NORMAL--', $cursor_line_index + 1)
       else
         code, indent_ct, need_full_redraw = move_cursor_to_new_line(code_lines, current_row)
